@@ -19,7 +19,9 @@ logger.addHandler(file_handler)
 logger.addHandler(console_handler)
 
 def log(msg):
-    logger.info(msg)
+    safe_msg = msg.encode("utf-8", errors="ignore").decode("utf-8")
+    logger.info(safe_msg)
 
 def err(msg):
-    logger.error(msg)
+    safe_msg = msg.encode("utf-8", errors="ignore").decode("utf-8")
+    logger.error(safe_msg)
