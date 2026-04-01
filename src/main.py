@@ -20,7 +20,7 @@ def run():
         ensure_connection()
 
         if not is_market_open():
-            log("⛔ Market CLOSED → waiting")
+            log("Market CLOSED → waiting")
             time.sleep(SLEEP_SECONDS)
             continue
 
@@ -31,12 +31,12 @@ def run():
             time.sleep(SLEEP_SECONDS)
             continue
 
-        log(f"📊 Price: {price}")
-        log(f"📦 Holdings: {[p['price'] for p in positions]}")
+        log(f"Price: {price}")
+        log(f"Holdings: {[p['price'] for p in positions]}")
 
         # ================= FIRST BUY =================
         if not positions:
-            log("🟢 BUY")
+            log("BUY")
 
             result = place_buy(price)
 
@@ -54,7 +54,7 @@ def run():
                 time.sleep(30)
 
             else:
-                err(f"❌ BUY FAILED {result}")
+                err(f"BUY FAILED {result}")
 
         else:
             last_price = positions[-1]["price"]
@@ -64,7 +64,7 @@ def run():
                 if price == last_failed_price:
                     log("⏸ Skipping BUY (same failed price)")
                 else:
-                    log("🟢 BUY")
+                    log("BUY")
 
                     result = place_buy(price)
 
@@ -75,7 +75,7 @@ def run():
                             "volume": result.volume
                         })
                         save_state({"positions": positions})
-                        log("✅ BUY SUCCESS")
+                        log("BUY SUCCESS")
                         last_failed_price = None
 
                     elif result.retcode in (10027, 10018):
@@ -83,7 +83,7 @@ def run():
                         time.sleep(30)
 
                     else:
-                        err(f"❌ BUY FAILED {result}")
+                        err(f"BUY FAILED {result}")
                         last_failed_price = price
 
             # ================= SELL CONDITION =================
@@ -92,13 +92,13 @@ def run():
 
                 for p in positions[:]:
                     if price >= p["price"] + GRID_GAP:
-                        log(f"🔻 SELL {p['price']}")
+                        log(f"SELL {p['price']}")
 
                         result = close_position(p["ticket"], p["volume"], price)
 
                         if result and result.retcode == mt5.TRADE_RETCODE_DONE:
                             profit = price - p["price"]
-                            log(f"💰 Profit: {profit}")
+                            log(f"Profit: {profit}")
 
                             positions.remove(p)
                             save_state({"positions": positions})
@@ -109,7 +109,7 @@ def run():
                             time.sleep(30)
 
                         else:
-                            err(f"❌ SELL FAILED {result}")
+                            err(f"SELL FAILED {result}")
 
                 if not sold_any:
                     log("⏳ HOLD")
