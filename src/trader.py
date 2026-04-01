@@ -1,12 +1,13 @@
 import MetaTrader5 as mt5
-from config import SYMBOL, LOT
+from config import SYMBOL, LOT_SIZE
+from logger import log, err
 
 
 def place_buy(price):
-    result = mt5.order_send({
+    request = {
         "action": mt5.TRADE_ACTION_DEAL,
         "symbol": SYMBOL,
-        "volume": LOT,
+        "volume": LOT_SIZE,
         "type": mt5.ORDER_TYPE_BUY,
         "price": price,
         "deviation": 20,
@@ -14,25 +15,26 @@ def place_buy(price):
         "comment": "grid buy",
         "type_time": mt5.ORDER_TIME_GTC,
         "type_filling": mt5.ORDER_FILLING_IOC,
-    })
+    }
+
+    result = mt5.order_send(request)
     return result
 
 
-def close_position(position):
-    """
-    Close a specific BUY position using ticket
-    """
-    result = mt5.order_send({
+def close_position(ticket, volume, price):
+    request = {
         "action": mt5.TRADE_ACTION_DEAL,
         "symbol": SYMBOL,
-        "volume": position.volume,
+        "volume": volume,
         "type": mt5.ORDER_TYPE_SELL,
-        "position": position.ticket,  # 🔥 CRITICAL
-        "price": mt5.symbol_info_tick(SYMBOL).bid,
+        "position": ticket,
+        "price": price,
         "deviation": 20,
         "magic": 10001,
-        "comment": "grid close",
+        "comment": "grid sell",
         "type_time": mt5.ORDER_TIME_GTC,
         "type_filling": mt5.ORDER_FILLING_IOC,
-    })
+    }
+
+    result = mt5.order_send(request)
     return result

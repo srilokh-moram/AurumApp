@@ -1,15 +1,22 @@
 import json
-from config import STATE_FILE
+import os
+
+STATE_FILE = "state.json"
 
 
 def load_state():
-    try:
-        with open(STATE_FILE, "r") as f:
-            return json.load(f)
-    except:
+    if not os.path.exists(STATE_FILE):
         return {"positions": []}
 
+    with open(STATE_FILE, "r") as f:
+        data = json.load(f)
 
-def save_state(data):
+    if "positions" not in data:
+        data["positions"] = []
+
+    return data
+
+
+def save_state(state):
     with open(STATE_FILE, "w") as f:
-        json.dump(data, f)
+        json.dump(state, f, indent=2)
