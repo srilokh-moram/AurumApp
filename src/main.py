@@ -4,7 +4,7 @@ import MetaTrader5 as mt5
 from mt5_connector import connect, ensure_connection, get_price, is_market_open
 from trader import place_buy, close_position
 from state import load_state, save_state
-from config import SLEEP_TIME, GRID_GAP
+from config import SLEEP_SECONDS, GRID_GAP
 from logger import log, err
 
 
@@ -21,14 +21,14 @@ def run():
 
         if not is_market_open():
             log("⛔ Market CLOSED → waiting")
-            time.sleep(SLEEP_TIME)
+            time.sleep(SLEEP_SECONDS)
             continue
 
         price = get_price()
 
         if price is None:
             err("⚠️ No price data")
-            time.sleep(SLEEP_TIME)
+            time.sleep(SLEEP_SECONDS)
             continue
 
         log(f"📊 Price: {price}")
@@ -114,7 +114,7 @@ def run():
                 if not sold_any:
                     log("⏳ HOLD")
 
-        time.sleep(SLEEP_TIME)
+        time.sleep(SLEEP_SECONDS)
 
 
 if __name__ == "__main__":
