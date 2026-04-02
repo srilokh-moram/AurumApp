@@ -18,6 +18,11 @@ A Python-based automated trading bot for gold (XAUUSD) using MetaTrader 5.
 
 ## Setup
 
+## create virtual env
+
+1. `python -m venv venv`
+2. `.\venv\Scripts\activate`
+
 1. Install MetaTrader 5 platform
 2. Ensure Python 3.7+ is installed
 3. Install dependencies: `pip install -r requirements.txt`

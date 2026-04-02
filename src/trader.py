@@ -4,6 +4,7 @@ from logger import log, err
 
 
 def place_buy(price):
+
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
         "symbol": SYMBOL,
@@ -14,7 +15,6 @@ def place_buy(price):
         "magic": 10001,
         "comment": "grid buy",
         "type_time": mt5.ORDER_TIME_GTC,
-        "type_filling": mt5.ORDER_FILLING_IOC,
     }
 
     result = mt5.order_send(request)
@@ -22,6 +22,7 @@ def place_buy(price):
 
 
 def close_position(ticket, volume, price):
+
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
         "symbol": SYMBOL,
@@ -33,7 +34,6 @@ def close_position(ticket, volume, price):
         "magic": 10001,
         "comment": "grid sell",
         "type_time": mt5.ORDER_TIME_GTC,
-        "type_filling": mt5.ORDER_FILLING_IOC,
     }
 
     result = mt5.order_send(request)
