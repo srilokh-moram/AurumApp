@@ -1,17 +1,19 @@
 @echo off
 cd /d %USERPROFILE%\Documents\git-repo\Aurum
 
-:loop
-echo ===============================
-echo Starting bot...
-echo ===============================
-
+:: Activate venv ONCE
 call venv\Scripts\activate
-python src\main.py
 
-echo ===============================
+:loop
+echo ======================================
+echo Starting bot...
+echo ======================================
+
+python src\main.py >> logs\bot.log 2>&1
+
+echo ======================================
 echo Bot crashed. Restarting...
-echo ===============================
+echo ======================================
 
 timeout /t 5
 goto loop
