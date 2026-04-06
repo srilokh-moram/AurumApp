@@ -5,10 +5,10 @@ from logger import log, err
 
 def connect():
     if not mt5.initialize(login=MT5_LOGIN, password=MT5_PASSWORD, server=MT5_SERVER):
-        err(f"❌ MT5 init failed: {mt5.last_error()}")
+        err(f"MT5 init failed: {mt5.last_error()}")
         return False
 
-    log("✅ MT5 Connected")
+    log("MT5 Connected")
 
     mt5.symbol_select(SYMBOL, True)
     return True
@@ -16,7 +16,7 @@ def connect():
 
 def ensure_connection():
     if mt5.terminal_info() is None:
-        log("🔁 Reconnecting MT5...")
+        log("Reconnecting MT5...")
         return connect()
     return True
 

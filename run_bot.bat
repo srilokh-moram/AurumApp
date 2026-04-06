@@ -1,19 +1,19 @@
 @echo off
-cd /d %USERPROFILE%\Documents\git-repo\Aurum
 
-:: Activate venv ONCE
-call venv\Scripts\activate
+cd /d C:\Users\Administrator\Documents\Aurum
+
+if not exist logs mkdir logs
 
 :loop
 echo ======================================
 echo Starting bot...
 echo ======================================
 
-python src\main.py >> logs\bot.log 2>&1
+venv\Scripts\python.exe src\main.py >> logs\runner.log 2>&1
 
 echo ======================================
 echo Bot crashed. Restarting...
 echo ======================================
 
-timeout /t 5
+ping 127.0.0.1 -n 6 > nul
 goto loop

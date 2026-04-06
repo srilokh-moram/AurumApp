@@ -27,7 +27,7 @@ def run():
         price = get_price()
 
         if price is None:
-            err("⚠️ No price data")
+            err("No price data")
             time.sleep(SLEEP_SECONDS)
             continue
 
@@ -47,10 +47,10 @@ def run():
                     "volume": result.volume
                 })
                 save_state({"positions": positions})
-                log("✅ BUY SUCCESS")
+                log("BUY SUCCESS")
 
             elif result.retcode in (10027, 10018):
-                err("⏸ Waiting (AutoTrading OFF / Market Closed)")
+                err("Waiting (AutoTrading OFF / Market Closed)")
                 time.sleep(30)
 
             else:
@@ -62,7 +62,7 @@ def run():
             # ================= BUY CONDITION =================
             if price <= last_price - GRID_GAP:
                 if price == last_failed_price:
-                    log("⏸ Skipping BUY (same failed price)")
+                    log("Skipping BUY (same failed price)")
                 else:
                     log("BUY")
 
@@ -112,7 +112,7 @@ def run():
                             err(f"SELL FAILED {result}")
 
                 if not sold_any:
-                    log("⏳ HOLD")
+                    log("HOLD")
 
         time.sleep(SLEEP_SECONDS)
 
