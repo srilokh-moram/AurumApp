@@ -8,9 +8,11 @@ export default function Positions() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"open" | "closed">("open");
 
-  useEffect(() => {
-    api.get("/trading/positions/history").then((r) => setAll(r.data)).finally(() => setLoading(false));
-  }, []);
+  function load() {
+    return api.get("/trading/positions/history").then((r) => setAll(r.data)).finally(() => setLoading(false));
+  }
+
+  useEffect(() => { load(); }, []);
 
   const open   = all.filter((p) => p.status === "open");
   const closed = all.filter((p) => p.status === "closed");
@@ -26,7 +28,12 @@ export default function Positions() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-bold text-white">Positions</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-white">Positions</h1>
+        <button onClick={() => load()} className="text-xs text-gray-500 hover:text-gold-400 transition-colors">
+          ↻ Refresh
+        </button>
+      </div>
 
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

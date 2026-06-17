@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from datetime import datetime
+from typing import Optional
 
 from database import get_db
 from deps import get_admin_user
@@ -9,7 +10,8 @@ from models.account import Account
 from models.deposit import Deposit
 from models.transaction import Transaction, TransactionType
 from models.position import Position, PositionStatus
-from schemas import DepositRequest
+from models.system_config import SystemConfig
+from schemas import DepositRequest, ConfigUpdateRequest
 from services.mt5_service import get_live_profits, close_position, get_tick, get_account_info
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -116,6 +118,57 @@ async def all_positions(admin=Depends(get_admin_user), db: Session = Depends(get
     ]
 
 
+@router.get("/positions/all")
+async def all_positions_detail(
+    status: str = Query("open", pattern="^(open|closed|all)$"),
+    user_id: Optional[int] = Query(None),
+    admin=Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Position)
+    if status == "open":
+        query = query.filter(Position.status == PositionStatus.open)
+    elif status == "closed":
+        query = query.filter(Position.status == PositionStatus.closed)
+    if user_id:
+        query = query.filter(Position.user_id == user_id)
+
+    positions = query.order_by(Position.entry_time.desc()).limit(500).all()
+
+    has_open = any(p.status == PositionStatus.open for p in positions)
+    live = await get_live_profits() if has_open else {}
+
+    users = {u.id: u for u in db.query(User).all()}
+    accounts = {a.user_id: a for a in db.query(Account).all()}
+
+    result = []
+    for p in positions:
+        u = users.get(p.user_id)
+        acc = accounts.get(p.user_id)
+        entry: dict = {
+            "id": p.id,
+            "user_id": p.user_id,
+            "user_name": u.name if u else "?",
+            "user_email": u.email if u else "?",
+            "user_balance": round(float(acc.balance), 2) if acc else 0.0,
+            "mt5_ticket": p.mt5_ticket,
+            "symbol": p.symbol,
+            "direction": p.direction or "buy",
+            "entry_price": float(p.entry_price),
+            "volume": float(p.volume),
+            "lot_size": float(p.lot_size),
+            "grid_gap": float(p.grid_gap),
+            "status": p.status,
+            "entry_time": p.entry_time.isoformat(),
+            "close_time": p.close_time.isoformat() if p.close_time else None,
+            "close_price": float(p.close_price) if p.close_price else None,
+            "profit": round(float(p.profit), 2) if p.profit is not None else None,
+            "floating_pl": round(live.get(p.mt5_ticket, 0.0), 2) if p.status == PositionStatus.open else None,
+        }
+        result.append(entry)
+    return result
+
+
 @router.post("/positions/{position_id}/close")
 async def force_close(position_id: int, admin=Depends(get_admin_user), db: Session = Depends(get_db)):
     pos = db.query(Position).filter(Position.id == position_id, Position.status == PositionStatus.open).first()
@@ -128,13 +181,14 @@ async def force_close(position_id: int, admin=Depends(get_admin_user), db: Sessi
 
     is_short = (pos.direction == "sell")
     close_price = tick["ask"] if is_short else tick["bid"]
-    result = await close_position(pos.mt5_ticket, float(pos.volume), close_price, pos.user_id, is_short)
+    pos_user = db.query(User).filter(User.id == pos.user_id).first()
+    result = await close_position(pos.mt5_ticket, float(pos.volume), close_price, pos.user_id, is_short, pos_user.name if pos_user else "")
 
     if not result or result.retcode != 10009:
         raise HTTPException(status_code=400, detail="Close failed")
 
-    from services.mt5_service import get_closed_profit
-    profit = await get_closed_profit(pos.mt5_ticket)
+    from services.mt5_service import get_deal_profit
+    profit = await get_deal_profit(result.deal) if result.deal else 0.0
 
     pos.status = PositionStatus.closed
     pos.close_time = datetime.utcnow()
@@ -149,10 +203,10 @@ async def force_close(position_id: int, admin=Depends(get_admin_user), db: Sessi
         user_id=pos.user_id,
         type=TransactionType.sell,
         amount=profit,
-        price=bid,
+        price=close_price,
         volume=float(pos.volume),
         mt5_ticket=pos.mt5_ticket,
-        note=f"Force closed by admin @ {bid}",
+        note=f"Force closed by admin @ {close_price}",
     ))
     db.commit()
     return {"message": "Position closed", "profit": round(profit, 2)}
@@ -160,13 +214,12 @@ async def force_close(position_id: int, admin=Depends(get_admin_user), db: Sessi
 
 @router.get("/stats")
 async def platform_stats(admin=Depends(get_admin_user), db: Session = Depends(get_db)):
+    from sqlalchemy import func
+
     total_users = db.query(User).filter(User.is_admin == False).count()
     verified_users = db.query(User).filter(User.is_admin == False, User.is_verified == True).count()
     open_pos = db.query(Position).filter(Position.status == PositionStatus.open).count()
-    total_deposits = db.query(Deposit).count()
-
-    from sqlalchemy import func
-    deposit_sum = db.query(func.sum(Deposit.amount)).scalar() or 0
+    deposit_sum = float(db.query(func.sum(Deposit.amount)).scalar() or 0)
 
     return {
         "total_users": total_users,
@@ -182,3 +235,49 @@ async def mt5_account(admin=Depends(get_admin_user)):
     if not info:
         return {"error": "MT5 not connected"}
     return info
+
+
+@router.get("/transactions")
+def all_transactions(limit: int = 200, admin=Depends(get_admin_user), db: Session = Depends(get_db)):
+    rows = (
+        db.query(Transaction, User)
+        .join(User, User.id == Transaction.user_id)
+        .order_by(Transaction.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": t.id,
+            "user_id": t.user_id,
+            "user_name": u.name,
+            "user_email": u.email,
+            "type": t.type,
+            "amount": float(t.amount),
+            "price": float(t.price) if t.price else None,
+            "volume": float(t.volume) if t.volume else None,
+            "lot_size": float(t.lot_size) if t.lot_size else None,
+            "mt5_ticket": t.mt5_ticket,
+            "note": t.note,
+            "created_at": t.created_at.isoformat(),
+        }
+        for t, u in rows
+    ]
+
+
+@router.get("/config")
+def get_config(admin=Depends(get_admin_user), db: Session = Depends(get_db)):
+    rows = db.query(SystemConfig).all()
+    return {r.key: float(r.value) for r in rows}
+
+
+@router.put("/config")
+def update_config(data: ConfigUpdateRequest, admin=Depends(get_admin_user), db: Session = Depends(get_db)):
+    row = db.query(SystemConfig).filter(SystemConfig.key == data.key).first()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Config key '{data.key}' not found")
+    if data.value < 0:
+        raise HTTPException(status_code=400, detail="Value must be non-negative")
+    row.value = data.value
+    db.commit()
+    return {"key": data.key, "value": float(row.value)}

@@ -11,6 +11,7 @@ from models.account import Account
 from models.balance_snapshot import BalanceSnapshot
 from schemas import BuyRequest, SellOrderRequest
 from services import mt5_service
+from services.mt5_service import get_deal_profit
 from config import SYMBOL
 
 router = APIRouter(prefix="/trading", tags=["trading"])
@@ -58,7 +59,7 @@ async def buy(
         raise HTTPException(status_code=503, detail="Market price unavailable")
 
     ask = tick["ask"]
-    result = await mt5_service.place_buy(ask, data.lot_size, user.id, data.grid_gap)
+    result = await mt5_service.place_buy(ask, data.lot_size, user.id, 0, user.name)
 
     if not result or result.retcode != mt5.TRADE_RETCODE_DONE:
         code = result.retcode if result else "N/A"
@@ -71,7 +72,7 @@ async def buy(
         entry_price=ask,
         volume=data.lot_size,
         lot_size=data.lot_size,
-        grid_gap=data.grid_gap,
+        grid_gap=0,
     ))
     db.add(Transaction(
         user_id=user.id,
@@ -107,7 +108,7 @@ async def short(
         raise HTTPException(status_code=503, detail="Market price unavailable")
 
     bid = tick["bid"]
-    result = await mt5_service.place_sell(bid, data.lot_size, user.id, data.grid_gap)
+    result = await mt5_service.place_sell(bid, data.lot_size, user.id, 0, user.name)
 
     if not result or result.retcode != mt5.TRADE_RETCODE_DONE:
         code = result.retcode if result else "N/A"
@@ -120,7 +121,7 @@ async def short(
         entry_price=bid,
         volume=data.lot_size,
         lot_size=data.lot_size,
-        grid_gap=data.grid_gap,
+        grid_gap=0,
         direction="sell",
     ))
     db.add(Transaction(
@@ -158,13 +159,14 @@ async def sell(
 
     is_short = (pos.direction == "sell")
     close_price = tick["ask"] if is_short else tick["bid"]
-    result = await mt5_service.close_position(pos.mt5_ticket, float(pos.volume), close_price, user.id, is_short)
+    result = await mt5_service.close_position(pos.mt5_ticket, float(pos.volume), close_price, user.id, is_short, user.name)
 
     if not result or result.retcode != mt5.TRADE_RETCODE_DONE:
         code = result.retcode if result else "N/A"
         raise HTTPException(status_code=400, detail=f"Close order rejected (code {code})")
 
-    profit = await mt5_service.get_closed_profit(pos.mt5_ticket)
+    # Look up profit by the specific deal ticket — fast single-record lookup
+    profit = await get_deal_profit(result.deal) if result.deal else 0.0
 
     pos.status = PositionStatus.closed
     pos.close_time = datetime.utcnow()
@@ -179,16 +181,16 @@ async def sell(
         user_id=user.id,
         type=TransactionType.sell,
         amount=profit,
-        price=bid,
+        price=close_price,
         volume=float(pos.volume),
         lot_size=float(pos.lot_size),
         mt5_ticket=pos.mt5_ticket,
-        note=f"SELL @ {bid} | P&L: ${round(profit, 2)}",
+        note=f"SELL @ {close_price} | P&L: ${round(profit, 2)}",
     ))
     db.commit()
     _snapshot_balance(user.id, db)
 
-    return {"message": "Position closed", "profit": round(profit, 2), "close_price": bid}
+    return {"message": "Position closed", "profit": round(profit, 2), "close_price": close_price}
 
 
 @router.get("/positions/open")

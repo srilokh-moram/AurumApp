@@ -82,11 +82,9 @@ class TransactionOut(BaseModel):
 
 class BuyRequest(BaseModel):
     lot_size: float
-    grid_gap: float
 
 class SellOrderRequest(BaseModel):
     lot_size: float
-    grid_gap: float
 
 
 # ── Admin ─────────────────────────────────────────────────────────────────────
@@ -95,6 +93,10 @@ class DepositRequest(BaseModel):
     user_id: int
     amount: float
     note: Optional[str] = None
+
+class ConfigUpdateRequest(BaseModel):
+    key: str
+    value: float
 
 
 class UserAdminView(BaseModel):

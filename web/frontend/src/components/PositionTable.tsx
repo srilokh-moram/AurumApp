@@ -21,7 +21,7 @@ export default function PositionTable({ positions, onSell, loading }: Props) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-[#1f2937]">
-            {["Dir", "Ticket", "Symbol", "Entry Price", "Lot", "Grid Gap", "Time", "P&L", onSell ? "Action" : "Close Price", onSell ? "" : "Profit"].filter(Boolean).map((h) => (
+            {["Dir", "Ticket", "Symbol", "Entry Price", "Lot", "Time", "P&L", onSell ? "Action" : "Close Price", onSell ? "" : "Profit"].filter(Boolean).map((h) => (
               <th key={h} className="text-left py-3 px-3 text-xs text-gray-500 font-medium uppercase tracking-wider">
                 {h}
               </th>
@@ -43,7 +43,6 @@ export default function PositionTable({ positions, onSell, loading }: Props) {
                 <td className="py-3 px-3 font-semibold text-gold-400">{p.symbol}</td>
                 <td className="py-3 px-3 font-mono">{p.entry_price.toFixed(2)}</td>
                 <td className="py-3 px-3 font-mono text-gray-300">{p.lot_size}</td>
-                <td className="py-3 px-3 font-mono text-gray-300">${p.grid_gap}</td>
                 <td className="py-3 px-3 text-gray-400 text-xs">
                   {format(new Date(p.entry_time), "MMM d, HH:mm")}
                 </td>

@@ -1,63 +1,43 @@
-import { useEffect, useRef, useState } from "react";
-import { Tick, Position } from "../types";
+import { useEffect, useState } from "react";
+import { Position } from "../types";
 import LiveChart from "../components/LiveChart";
 import TradePanel from "../components/TradePanel";
 import PositionTable from "../components/PositionTable";
 import api from "../api";
+import { useMarket } from "../context/MarketContext";
 
 export default function Trade() {
-  const [tick, setTick] = useState<Tick | null>(null);
+  const { tick, livePositions } = useMarket();
   const [positions, setPositions] = useState<Position[]>([]);
   const [closing, setClosing] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
 
   function loadPositions() {
-    api.get("/trading/positions/open").then((r) => setPositions(r.data));
+    return api.get("/trading/positions/open").then((r) => setPositions(r.data));
   }
 
   useEffect(() => {
     loadPositions();
-
-    const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${wsProto}//${window.location.host}/ws/prices`);
-    wsRef.current = ws;
-
-    ws.onmessage = (e) => {
-      try {
-        setTick(JSON.parse(e.data));
-      } catch {}
-    };
-
-    ws.onerror = () => ws.close();
-
-    // Keep-alive ping every 20s
-    const ping = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) ws.send("ping");
-    }, 20000);
-
-    return () => {
-      clearInterval(ping);
-      ws.close();
-    };
   }, []);
 
-  // Refresh positions every 5s to update floating P&L
-  useEffect(() => {
-    const t = setInterval(loadPositions, 5000);
-    return () => clearInterval(t);
-  }, []);
+  // Merge live P&L from WS into positions — updates every 0.5s without any API call
+  const positionsWithLivePL = positions.map((p) => ({
+    ...p,
+    floating_pl: livePositions[p.mt5_ticket] ?? p.floating_pl ?? 0,
+  }));
 
   async function handleSell(positionId: number) {
     setClosing(true);
     try {
       await api.post(`/trading/sell/${positionId}`);
-      loadPositions();
+      await loadPositions();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Failed to close position");
     } finally {
       setClosing(false);
     }
   }
 
-  const totalFloating = positions.reduce((s, p) => s + (p.floating_pl ?? 0), 0);
+  const totalFloating = positionsWithLivePL.reduce((s, p) => s + (p.floating_pl ?? 0), 0);
 
   return (
     <div className="space-y-4">
@@ -74,7 +54,7 @@ export default function Trade() {
           <LiveChart tick={tick} />
         </div>
 
-        {/* Trade panel — auto height, no overflow */}
+        {/* Trade panel — auto height */}
         <TradePanel tick={tick} onOrderPlaced={loadPositions} />
       </div>
 
@@ -86,10 +66,10 @@ export default function Trade() {
               Open Positions
             </h2>
             <span className="bg-gold-400/10 text-gold-400 text-xs px-2 py-0.5 rounded-full font-medium">
-              {positions.length}
+              {positionsWithLivePL.length}
             </span>
           </div>
-          {positions.length > 0 && (
+          {positionsWithLivePL.length > 0 && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500">Total floating P&L:</span>
               <span className={`text-sm font-mono font-semibold ${totalFloating >= 0 ? "text-emerald-400" : "text-red-400"}`}>
@@ -98,7 +78,7 @@ export default function Trade() {
             </div>
           )}
         </div>
-        <PositionTable positions={positions} onSell={handleSell} loading={closing} />
+        <PositionTable positions={positionsWithLivePL} onSell={handleSell} loading={closing} />
       </div>
     </div>
   );

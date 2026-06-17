@@ -29,13 +29,16 @@ async def ensure_connected() -> bool:
 
 # ── Tick data ─────────────────────────────────────────────────────────────────
 
+FIXED_SPREAD = 2.7
+
+
 def _get_tick() -> Optional[dict]:
     if not _connect():
         return None
     tick = mt5.symbol_info_tick(SYMBOL)
-    if tick is None or tick.ask == 0:
+    if tick is None or tick.bid == 0:
         return None
-    return {"ask": tick.ask, "bid": tick.bid, "time": tick.time}
+    return {"bid": tick.bid, "ask": round(tick.bid + FIXED_SPREAD, 5), "time": tick.time}
 
 
 async def get_tick() -> Optional[dict]:
@@ -65,9 +68,16 @@ async def get_candles(count: int = 300) -> list:
 
 # ── Order execution ───────────────────────────────────────────────────────────
 
-def _place_buy(price: float, volume: float, user_id: int, grid_gap: float):
+def _short_name(user_name: str, user_id: int) -> str:
+    """First word of user's name, max 8 chars, fallback to uid."""
+    word = user_name.split()[0][:8] if user_name.strip() else ""
+    return word if word else f"u{user_id}"
+
+
+def _place_buy(price: float, volume: float, user_id: int, grid_gap: float, user_name: str = ""):
     if not _connect():
         return None
+    tag = _short_name(user_name, user_id)
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
         "symbol": SYMBOL,
@@ -76,17 +86,18 @@ def _place_buy(price: float, volume: float, user_id: int, grid_gap: float):
         "price": price,
         "deviation": 50,
         "magic": 10001,
-        "comment": f"uid:{user_id}:gap:{grid_gap}",
+        "comment": f"u{user_id}:{tag}:buy:g{grid_gap}",
         "type_time": mt5.ORDER_TIME_GTC,
         "type_filling": mt5.ORDER_FILLING_FOK,
     }
     return mt5.order_send(request)
 
 
-def _place_sell(price: float, volume: float, user_id: int, grid_gap: float):
+def _place_sell(price: float, volume: float, user_id: int, grid_gap: float, user_name: str = ""):
     """Open a new short (sell) position."""
     if not _connect():
         return None
+    tag = _short_name(user_name, user_id)
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
         "symbol": SYMBOL,
@@ -95,17 +106,18 @@ def _place_sell(price: float, volume: float, user_id: int, grid_gap: float):
         "price": price,
         "deviation": 50,
         "magic": 10001,
-        "comment": f"uid:{user_id}:short:gap:{grid_gap}",
+        "comment": f"u{user_id}:{tag}:sell:g{grid_gap}",
         "type_time": mt5.ORDER_TIME_GTC,
         "type_filling": mt5.ORDER_FILLING_FOK,
     }
     return mt5.order_send(request)
 
 
-def _close_position(ticket: int, volume: float, price: float, user_id: int, is_short: bool = False):
+def _close_position(ticket: int, volume: float, price: float, user_id: int, is_short: bool = False, user_name: str = ""):
     """Close a position. Use is_short=True to close a short (sends a BUY to close)."""
     if not _connect():
         return None
+    tag = _short_name(user_name, user_id)
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
         "symbol": SYMBOL,
@@ -115,26 +127,26 @@ def _close_position(ticket: int, volume: float, price: float, user_id: int, is_s
         "price": price,
         "deviation": 50,
         "magic": 10001,
-        "comment": f"uid:{user_id}:close",
+        "comment": f"u{user_id}:{tag}:close",
         "type_time": mt5.ORDER_TIME_GTC,
         "type_filling": mt5.ORDER_FILLING_FOK,
     }
     return mt5.order_send(request)
 
 
-async def place_buy(price: float, volume: float, user_id: int, grid_gap: float):
+async def place_buy(price: float, volume: float, user_id: int, grid_gap: float, user_name: str = ""):
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(_executor, _place_buy, price, volume, user_id, grid_gap)
+    return await loop.run_in_executor(_executor, _place_buy, price, volume, user_id, grid_gap, user_name)
 
 
-async def place_sell(price: float, volume: float, user_id: int, grid_gap: float):
+async def place_sell(price: float, volume: float, user_id: int, grid_gap: float, user_name: str = ""):
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(_executor, _place_sell, price, volume, user_id, grid_gap)
+    return await loop.run_in_executor(_executor, _place_sell, price, volume, user_id, grid_gap, user_name)
 
 
-async def close_position(ticket: int, volume: float, price: float, user_id: int, is_short: bool = False):
+async def close_position(ticket: int, volume: float, price: float, user_id: int, is_short: bool = False, user_name: str = ""):
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(_executor, _close_position, ticket, volume, price, user_id, is_short)
+    return await loop.run_in_executor(_executor, _close_position, ticket, volume, price, user_id, is_short, user_name)
 
 
 # ── Live position profit from MT5 ─────────────────────────────────────────────
@@ -155,16 +167,37 @@ async def get_live_profits() -> dict:
 
 # ── Deal profit after close ───────────────────────────────────────────────────
 
-def _get_closed_profit(ticket: int) -> float:
-    deals = mt5.history_deals_get(position=ticket)
+def _get_deal_profit(deal_ticket: int) -> float:
+    """Fetch profit by deal ticket — fast single-deal lookup."""
+    if not _connect():
+        return 0.0
+    deals = mt5.history_deals_get(ticket=deal_ticket)
+    if deals:
+        return sum(d.profit for d in deals)
+    return 0.0
+
+
+def _get_closed_profit(position_ticket: int) -> float:
+    """Fetch profit by position ticket — used for externally-closed positions."""
+    if not _connect():
+        return 0.0
+    from datetime import datetime, timedelta
+    date_from = datetime.utcnow() - timedelta(days=7)
+    date_to = datetime.utcnow() + timedelta(hours=1)
+    deals = mt5.history_deals_get(date_from, date_to, position=position_ticket)
     if deals:
         return sum(d.profit for d in deals if d.entry == 1)
     return 0.0
 
 
-async def get_closed_profit(ticket: int) -> float:
+async def get_deal_profit(deal_ticket: int) -> float:
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(_executor, _get_closed_profit, ticket)
+    return await loop.run_in_executor(_executor, _get_deal_profit, deal_ticket)
+
+
+async def get_closed_profit(position_ticket: int) -> float:
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(_executor, _get_closed_profit, position_ticket)
 
 
 # ── Real MT5 account info ─────────────────────────────────────────────────────

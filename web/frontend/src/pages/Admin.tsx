@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
-import { AdminUser, AdminPosition } from "../types";
+import { useEffect, useState, useMemo } from "react";
+import { AdminUser, AdminPosition, AdminPositionDetail, AdminTransaction } from "../types";
 import api from "../api";
 import { format } from "date-fns";
-import { Users, DollarSign, BarChart3, TrendingUp } from "lucide-react";
+import { Users, DollarSign, BarChart3, TrendingUp, Settings, History, Layers } from "lucide-react";
 
 function fmt(n: number) {
   return `$${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -93,20 +93,56 @@ function DepositModal({
 export default function Admin() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [positions, setPositions] = useState<AdminPosition[]>([]);
+  const [allPositions, setAllPositions] = useState<AdminPositionDetail[]>([]);
+  const [txs, setTxs] = useState<AdminTransaction[]>([]);
   const [stats, setStats] = useState<any>(null);
+  const [config, setConfig] = useState<Record<string, number>>({});
+  const [threshold, setThreshold] = useState("");
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [configMsg, setConfigMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [depositTarget, setDepositTarget] = useState<AdminUser | null>(null);
+  const [txFilter, setTxFilter] = useState<"all" | "buy" | "sell" | "deposit">("all");
+  const [posTab, setPosTab] = useState<"open" | "closed">("open");
+  const [posUserFilter, setPosUserFilter] = useState<number | "all">("all");
   const [loading, setLoading] = useState(true);
+
+  function loadAllPositions(tab: "open" | "closed", uid: number | "all") {
+    const params = new URLSearchParams({ status: tab });
+    if (uid !== "all") params.set("user_id", String(uid));
+    api.get(`/admin/positions/all?${params}`).then((r) => setAllPositions(r.data));
+  }
 
   function load() {
     Promise.all([
       api.get("/admin/users"),
       api.get("/admin/positions"),
       api.get("/admin/stats"),
-    ]).then(([u, p, s]) => {
+      api.get("/admin/config"),
+      api.get("/admin/transactions?limit=300"),
+    ]).then(([u, p, s, c, t]) => {
       setUsers(u.data);
       setPositions(p.data);
       setStats(s.data);
+      setConfig(c.data);
+      setThreshold(String(c.data.margin_call_threshold ?? 200));
+      setTxs(t.data);
     }).finally(() => setLoading(false));
+  }
+
+  async function saveThreshold() {
+    const val = parseFloat(threshold);
+    if (isNaN(val) || val < 0) return;
+    setSavingConfig(true);
+    setConfigMsg(null);
+    try {
+      await api.put("/admin/config", { key: "margin_call_threshold", value: val });
+      setConfig((c) => ({ ...c, margin_call_threshold: val }));
+      setConfigMsg({ text: "Saved successfully", ok: true });
+    } catch {
+      setConfigMsg({ text: "Failed to save", ok: false });
+    } finally {
+      setSavingConfig(false);
+    }
   }
 
   useEffect(() => {
@@ -114,6 +150,15 @@ export default function Admin() {
     const t = setInterval(load, 15000);
     return () => clearInterval(t);
   }, []);
+
+  // Positions get their own interval so the filter is never stale.
+  // Every time posTab or posUserFilter changes, the old interval is
+  // cleared and a new one starts with the correct current values.
+  useEffect(() => {
+    loadAllPositions(posTab, posUserFilter);
+    const t = setInterval(() => loadAllPositions(posTab, posUserFilter), 15000);
+    return () => clearInterval(t);
+  }, [posTab, posUserFilter]);
 
   async function toggleUser(user: AdminUser) {
     await api.put(`/admin/users/${user.id}/toggle`);
@@ -271,25 +316,56 @@ export default function Admin() {
         )}
       </div>
 
-      {/* All open positions */}
+      {/* Positions — open & closed with user filter */}
       <div className="card">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">
-            All Open Positions
-          </h2>
-          <span className="bg-gold-400/10 text-gold-400 text-xs px-2 py-0.5 rounded-full">
-            {positions.length} total
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+          <div className="flex items-center gap-2">
+            <Layers size={16} className="text-gold-400" />
+            <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Positions</h2>
+            <span className="bg-gold-400/10 text-gold-400 text-xs px-2 py-0.5 rounded-full">{allPositions.length}</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* User filter */}
+            <select
+              className="bg-[#0a0a0f] border border-[#1f2937] text-sm text-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:border-gold-400"
+              value={posUserFilter === "all" ? "all" : String(posUserFilter)}
+              onChange={(e) => setPosUserFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
+            >
+              <option value="all">All Users</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+              ))}
+            </select>
+
+            {/* Status tabs */}
+            <div className="flex gap-1 bg-[#0a0a0f] p-1 rounded-lg">
+              {(["open", "closed"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setPosTab(tab)}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all capitalize ${
+                    posTab === tab ? "bg-[#1f2937] text-white" : "text-gray-500 hover:text-gray-300"
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {positions.length === 0 ? (
-          <p className="text-gray-600 text-sm text-center py-8">No open positions</p>
+        {allPositions.length === 0 ? (
+          <p className="text-gray-600 text-sm text-center py-8">No positions found</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[#1f2937]">
-                  {["User", "Ticket", "Symbol", "Entry", "Lot", "Gap", "Floating P&L", "Opened", "Action"].map((h) => (
+                  {(posTab === "open"
+                    ? ["User", "Balance", "Ticket", "Dir", "Entry", "Lot", "Floating P&L", "Opened", "Action"]
+                    : ["User", "Balance", "Ticket", "Dir", "Entry", "Close", "Lot", "P&L", "Opened", "Closed"]
+                  ).map((h) => (
                     <th key={h} className="text-left py-3 px-3 text-xs text-gray-500 font-medium uppercase tracking-wider whitespace-nowrap">
                       {h}
                     </th>
@@ -297,37 +373,216 @@ export default function Admin() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1f2937]">
-                {positions.map((p) => (
+                {allPositions.map((p) => (
                   <tr key={p.id} className="hover:bg-[#1f2937]/30 transition-colors">
+                    {/* User */}
                     <td className="py-3 px-3">
                       <p className="font-medium text-white text-xs">{p.user_name}</p>
                       <p className="text-xs text-gray-500">{p.user_email}</p>
                     </td>
+                    {/* Balance */}
+                    <td className="py-3 px-3 font-mono text-xs text-gold-400 font-semibold whitespace-nowrap">
+                      {fmt(p.user_balance)}
+                    </td>
+                    {/* Ticket */}
                     <td className="py-3 px-3 font-mono text-gray-400 text-xs">{p.mt5_ticket}</td>
-                    <td className="py-3 px-3 text-gold-400 font-semibold text-xs">{p.symbol}</td>
-                    <td className="py-3 px-3 font-mono text-xs">{p.entry_price.toFixed(2)}</td>
-                    <td className="py-3 px-3 font-mono text-xs">{p.lot_size}</td>
-                    <td className="py-3 px-3 font-mono text-xs">${p.grid_gap}</td>
-                    <td className={`py-3 px-3 font-mono font-semibold text-xs ${p.floating_pl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                      {p.floating_pl >= 0 ? "+" : ""}${p.floating_pl.toFixed(2)}
-                    </td>
-                    <td className="py-3 px-3 text-gray-400 text-xs">
-                      {format(new Date(p.entry_time), "MMM d, HH:mm")}
-                    </td>
+                    {/* Direction */}
                     <td className="py-3 px-3">
-                      <button
-                        className="text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all"
-                        onClick={() => forceClose(p.id)}
-                      >
-                        Force Close
-                      </button>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                        p.direction === "sell" ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400"
+                      }`}>
+                        {p.direction.toUpperCase()}
+                      </span>
                     </td>
+                    {/* Entry price */}
+                    <td className="py-3 px-3 font-mono text-xs text-gray-300">{p.entry_price.toFixed(2)}</td>
+                    {posTab === "open" ? (
+                      <>
+                        {/* Lot */}
+                        <td className="py-3 px-3 font-mono text-xs text-gray-300">{p.lot_size}</td>
+                        {/* Floating P&L */}
+                        <td className={`py-3 px-3 font-mono font-semibold text-xs ${(p.floating_pl ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {(p.floating_pl ?? 0) >= 0 ? "+" : ""}${(p.floating_pl ?? 0).toFixed(2)}
+                        </td>
+                        {/* Opened */}
+                        <td className="py-3 px-3 text-gray-400 text-xs whitespace-nowrap">
+                          {format(new Date(p.entry_time), "MMM d, HH:mm")}
+                        </td>
+                        {/* Force close */}
+                        <td className="py-3 px-3">
+                          <button
+                            className="text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all whitespace-nowrap"
+                            onClick={() => forceClose(p.id)}
+                          >
+                            Force Close
+                          </button>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        {/* Close price */}
+                        <td className="py-3 px-3 font-mono text-xs text-gray-300">
+                          {p.close_price != null ? p.close_price.toFixed(2) : "—"}
+                        </td>
+                        {/* Lot */}
+                        <td className="py-3 px-3 font-mono text-xs text-gray-300">{p.lot_size}</td>
+                        {/* Realized P&L */}
+                        <td className={`py-3 px-3 font-mono font-semibold text-xs ${(p.profit ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {p.profit != null
+                            ? `${p.profit >= 0 ? "+" : ""}${fmt(p.profit)}`
+                            : "—"}
+                        </td>
+                        {/* Opened */}
+                        <td className="py-3 px-3 text-gray-400 text-xs whitespace-nowrap">
+                          {format(new Date(p.entry_time), "MMM d, HH:mm")}
+                        </td>
+                        {/* Closed */}
+                        <td className="py-3 px-3 text-gray-400 text-xs whitespace-nowrap">
+                          {p.close_time ? format(new Date(p.close_time), "MMM d, HH:mm") : "—"}
+                        </td>
+                      </>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
+      </div>
+
+      {/* Trade history */}
+      <div className="card">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+          <div className="flex items-center gap-2">
+            <History size={16} className="text-gold-400" />
+            <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Trade History</h2>
+            <span className="bg-gold-400/10 text-gold-400 text-xs px-2 py-0.5 rounded-full">{txs.length}</span>
+          </div>
+          {/* Filter tabs */}
+          <div className="flex gap-1 bg-[#0a0a0f] p-1 rounded-lg">
+            {(["all", "buy", "sell", "deposit"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setTxFilter(f)}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-all capitalize ${
+                  txFilter === f ? "bg-[#1f2937] text-white" : "text-gray-500 hover:text-gray-300"
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {(() => {
+          const filtered = txFilter === "all" ? txs : txs.filter((t) => t.type === txFilter);
+          if (filtered.length === 0) {
+            return <p className="text-gray-600 text-sm text-center py-8">No transactions found</p>;
+          }
+          return (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[#1f2937]">
+                    {["User", "Type", "Ticket", "Price", "Lot", "P&L / Amount", "Note", "Time"].map((h) => (
+                      <th key={h} className="text-left py-3 px-3 text-xs text-gray-500 font-medium uppercase tracking-wider whitespace-nowrap">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1f2937]">
+                  {filtered.map((t) => (
+                    <tr key={t.id} className="hover:bg-[#1f2937]/30 transition-colors">
+                      <td className="py-3 px-3">
+                        <p className="font-medium text-white text-xs">{t.user_name}</p>
+                        <p className="text-xs text-gray-500">{t.user_email}</p>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                          t.type === "buy"
+                            ? "bg-emerald-500/20 text-emerald-400"
+                            : t.type === "sell"
+                            ? "bg-red-500/20 text-red-400"
+                            : "bg-gold-400/20 text-gold-400"
+                        }`}>
+                          {t.type.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 font-mono text-gray-400 text-xs">
+                        {t.mt5_ticket ?? "—"}
+                      </td>
+                      <td className="py-3 px-3 font-mono text-xs text-gray-300">
+                        {t.price != null ? t.price.toFixed(2) : "—"}
+                      </td>
+                      <td className="py-3 px-3 font-mono text-xs text-gray-300">
+                        {t.lot_size != null ? t.lot_size : "—"}
+                      </td>
+                      <td className={`py-3 px-3 font-mono font-semibold text-xs ${
+                        t.type === "buy" ? "text-gray-400" :
+                        t.amount >= 0 ? "text-emerald-400" : "text-red-400"
+                      }`}>
+                        {t.type === "buy"
+                          ? "—"
+                          : `${t.amount >= 0 ? "+" : ""}${fmt(t.amount)}`}
+                      </td>
+                      <td className="py-3 px-3 text-xs text-gray-400 max-w-[200px] truncate" title={t.note ?? ""}>
+                        {t.note ?? "—"}
+                      </td>
+                      <td className="py-3 px-3 text-xs text-gray-500 whitespace-nowrap">
+                        {format(new Date(t.created_at), "MMM d, HH:mm:ss")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* Platform settings */}
+      <div className="card">
+        <div className="flex items-center gap-2 mb-5">
+          <Settings size={16} className="text-gold-400" />
+          <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Platform Settings</h2>
+        </div>
+
+        <div className="max-w-sm space-y-3">
+          <div>
+            <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">
+              Margin Call Threshold (USD)
+            </label>
+            <p className="text-xs text-gray-600 mb-2">
+              If a user's equity (balance + floating P&L) drops below this amount, all their open positions are automatically force-closed.
+            </p>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                <input
+                  className="input pl-7"
+                  type="number"
+                  min="0"
+                  step="10"
+                  value={threshold}
+                  onChange={(e) => { setThreshold(e.target.value); setConfigMsg(null); }}
+                />
+              </div>
+              <button
+                className="btn-gold px-5"
+                onClick={saveThreshold}
+                disabled={savingConfig}
+              >
+                {savingConfig ? "Saving..." : "Save"}
+              </button>
+            </div>
+            {configMsg && (
+              <p className={`text-xs mt-2 ${configMsg.ok ? "text-emerald-400" : "text-red-400"}`}>
+                {configMsg.text}
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Deposit modal */}

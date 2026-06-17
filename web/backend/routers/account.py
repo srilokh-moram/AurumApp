@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from datetime import date, datetime, timedelta
 
 from database import get_db
 from deps import get_current_user
 from models.account import Account
+from models.user import User
 from models.transaction import Transaction
 from models.position import Position, PositionStatus
 from models.balance_snapshot import BalanceSnapshot

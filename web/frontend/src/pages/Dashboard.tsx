@@ -6,43 +6,56 @@ import { AccountSummary, BalancePoint, Transaction } from "../types";
 import StatCard from "../components/StatCard";
 import BalanceChart from "../components/BalanceChart";
 import { format } from "date-fns";
+import { useMarket } from "../context/MarketContext";
 
 function fmt(n: number) {
   return `$${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export default function Dashboard() {
+  const { livePositions } = useMarket();
   const [summary, setSummary] = useState<AccountSummary | null>(null);
   const [history, setHistory] = useState<BalancePoint[]>([]);
   const [txs, setTxs] = useState<Transaction[]>([]);
+  const [myTickets, setMyTickets] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
+
+  function refreshSummary() {
+    return Promise.all([
+      api.get("/account/summary"),
+      api.get("/trading/positions/open"),
+    ]).then(([s, p]) => {
+      setSummary(s.data);
+      setMyTickets(p.data.map((pos: any) => pos.mt5_ticket));
+    });
+  }
 
   useEffect(() => {
     Promise.all([
       api.get("/account/summary"),
       api.get("/account/balance-history"),
       api.get("/account/transactions?limit=10"),
-    ]).then(([s, h, t]) => {
+      api.get("/trading/positions/open"),
+    ]).then(([s, h, t, p]) => {
       setSummary(s.data);
       setHistory(h.data);
       setTxs(t.data);
+      setMyTickets(p.data.map((pos: any) => pos.mt5_ticket));
     }).finally(() => setLoading(false));
 
-    const interval = setInterval(() => {
-      api.get("/account/summary").then((r) => setSummary(r.data));
-    }, 10000);
+    // Refresh balance and position list every 5s to catch closes, deposits, etc.
+    const interval = setInterval(refreshSummary, 5000);
     return () => clearInterval(interval);
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64 text-gray-600">
-        Loading...
-      </div>
-    );
+    return <div className="flex items-center justify-center h-64 text-gray-600">Loading...</div>;
   }
 
-  const floatingColor = !summary ? "default" : summary.floating_pl >= 0 ? "green" : "red";
+  // Live floating P&L computed from WS stream — updates every ~0.5s
+  const liveFloating = myTickets.reduce((s, t) => s + (livePositions[t] ?? 0), 0);
+  const liveEquity = summary ? summary.balance + liveFloating : null;
+  const floatingColor = liveFloating >= 0 ? "green" : "red";
   const profitColor = !summary ? "default" : summary.today_profit >= 0 ? "green" : "red";
 
   return (
@@ -50,14 +63,10 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-white">
-            Welcome, {summary?.name}
-          </h1>
+          <h1 className="text-2xl font-bold text-white">Welcome, {summary?.name}</h1>
           <p className="text-gray-500 text-sm mt-0.5">Your trading overview</p>
         </div>
-        <Link to="/trade" className="btn-gold text-sm">
-          Trade Now
-        </Link>
+        <Link to="/trade" className="btn-gold text-sm">Trade Now</Link>
       </div>
 
       {/* Stat cards */}
@@ -71,15 +80,15 @@ export default function Dashboard() {
         />
         <StatCard
           label="Equity"
-          value={summary ? fmt(summary.equity) : "—"}
+          value={liveEquity !== null ? fmt(liveEquity) : "—"}
           sub="Balance + Floating P&L"
           icon={<BarChart3 size={16} />}
-          color={summary && summary.equity >= (summary.allocated_limit * 0.9) ? "green" : "red"}
+          color={liveEquity !== null && summary && liveEquity >= summary.allocated_limit * 0.9 ? "green" : "red"}
         />
         <StatCard
           label="Floating P&L"
-          value={summary ? `${summary.floating_pl >= 0 ? "+" : ""}${fmt(summary.floating_pl)}` : "—"}
-          sub={`${summary?.open_positions ?? 0} open position${(summary?.open_positions ?? 0) !== 1 ? "s" : ""}`}
+          value={`${liveFloating >= 0 ? "+" : ""}${fmt(liveFloating)}`}
+          sub={`${myTickets.length} open position${myTickets.length !== 1 ? "s" : ""}`}
           icon={<Activity size={16} />}
           color={floatingColor}
         />

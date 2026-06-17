@@ -1,7 +1,7 @@
 import asyncio
 import threading
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +20,7 @@ from models.account import Account
 from models.balance_snapshot import BalanceSnapshot
 from models.transaction import Transaction, TransactionType
 from models.user import User
+from models.system_config import SystemConfig
 from config import ADMIN_EMAIL, ADMIN_NAME
 import MetaTrader5 as mt5
 
@@ -62,10 +63,75 @@ def _bootstrap():
     finally:
         db.close()
 
+    # Seed default system config values
+    cfg_db: Session = SessionLocal()
+    try:
+        if not cfg_db.query(SystemConfig).filter(SystemConfig.key == "margin_call_threshold").first():
+            cfg_db.add(SystemConfig(key="margin_call_threshold", value=200.0))
+            cfg_db.commit()
+    finally:
+        cfg_db.close()
 
-# ── Background: auto-sell profitable positions (sync thread) ──────────────────
 
-def _sync_auto_sell_loop():
+
+
+# ── Background: update floating P&L + sync orphaned positions (sync thread) ───
+
+def _sync_floating_pl_loop():
+    while True:
+        try:
+            live = _get_live_profits()  # {ticket: profit} for all open MT5 positions
+            db: Session = SessionLocal()
+            try:
+                cutoff = datetime.utcnow() - timedelta(seconds=60)
+                open_pos = db.query(Position).filter(
+                    Position.status == PositionStatus.open
+                ).all()
+
+                user_floating: dict[int, float] = {}
+                changed = False
+
+                for p in open_pos:
+                    if p.mt5_ticket in live:
+                        # Still open — update floating P&L
+                        user_floating.setdefault(p.user_id, 0.0)
+                        user_floating[p.user_id] += live[p.mt5_ticket]
+                    elif p.entry_time <= cutoff:
+                        # Older than 60s and gone from MT5 — closed externally
+                        profit = _get_closed_profit(p.mt5_ticket)
+                        p.status = PositionStatus.closed
+                        p.close_time = datetime.utcnow()
+                        p.profit = profit
+                        acc = db.query(Account).filter(Account.user_id == p.user_id).first()
+                        if acc:
+                            acc.balance = float(acc.balance) + profit
+                        db.add(Transaction(
+                            user_id=p.user_id,
+                            type=TransactionType.sell,
+                            amount=profit,
+                            price=float(p.entry_price),
+                            volume=float(p.volume),
+                            mt5_ticket=p.mt5_ticket,
+                            note=f"Closed externally in MT5 | P&L: ${round(profit, 2)}",
+                        ))
+                        changed = True
+
+                for uid, fpl in user_floating.items():
+                    acc = db.query(Account).filter(Account.user_id == uid).first()
+                    if acc:
+                        acc.floating_pl = fpl
+
+                db.commit()
+            finally:
+                db.close()
+        except Exception:
+            pass
+        time.sleep(5)
+
+
+# ── Background: margin call — force-close all positions below equity threshold ─
+
+def _sync_margin_call_loop():
     while True:
         try:
             tick = _get_tick()
@@ -74,75 +140,62 @@ def _sync_auto_sell_loop():
                 ask = tick["ask"]
                 db: Session = SessionLocal()
                 try:
-                    open_pos = db.query(Position).filter(
-                        Position.status == PositionStatus.open
-                    ).all()
-                    for pos in open_pos:
-                        is_short = (pos.direction == "sell")
-                        if is_short:
-                            # Short: auto-close when ask drops by grid_gap below entry
-                            triggered = ask <= float(pos.entry_price) - float(pos.grid_gap)
-                            close_price = ask
-                        else:
-                            # Long: auto-close when bid rises by grid_gap above entry
-                            triggered = bid >= float(pos.entry_price) + float(pos.grid_gap)
-                            close_price = bid
-                        if triggered:
-                            result = _close_position(
-                                pos.mt5_ticket, float(pos.volume), close_price, pos.user_id, is_short
-                            )
-                            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
-                                profit = _get_closed_profit(pos.mt5_ticket)
-                                pos.status = PositionStatus.closed
-                                pos.close_time = datetime.utcnow()
-                                pos.close_price = close_price
-                                pos.profit = profit
+                    # Read threshold from DB each cycle so admin changes apply immediately
+                    cfg = db.query(SystemConfig).filter(
+                        SystemConfig.key == "margin_call_threshold"
+                    ).first()
+                    threshold = float(cfg.value) if cfg else 200.0
 
-                                acc = db.query(Account).filter(
-                                    Account.user_id == pos.user_id
-                                ).first()
-                                if acc:
-                                    acc.balance = float(acc.balance) + profit
+                    live = _get_live_profits()
 
-                                db.add(Transaction(
-                                    user_id=pos.user_id,
-                                    type=TransactionType.sell,
-                                    amount=profit,
-                                    price=bid,
-                                    volume=float(pos.volume),
-                                    mt5_ticket=pos.mt5_ticket,
-                                    note=f"Auto-sell (grid) @ {bid} | P&L: ${round(profit, 2)}",
-                                ))
-                                db.commit()
-                finally:
-                    db.close()
-        except Exception:
-            pass
-        time.sleep(2)
-
-
-# ── Background: update floating P&L (sync thread) ────────────────────────────
-
-def _sync_floating_pl_loop():
-    while True:
-        try:
-            live = _get_live_profits()
-            if live:
-                db: Session = SessionLocal()
-                try:
-                    open_pos = db.query(Position).filter(
-                        Position.status == PositionStatus.open
-                    ).all()
-                    user_floating: dict[int, float] = {}
+                    # Group open positions by user (exclude admin)
+                    open_pos = (
+                        db.query(Position)
+                        .join(User, User.id == Position.user_id)
+                        .filter(Position.status == PositionStatus.open, User.is_admin == False)
+                        .all()
+                    )
+                    user_positions: dict[int, list] = {}
                     for p in open_pos:
-                        user_floating.setdefault(p.user_id, 0.0)
-                        user_floating[p.user_id] += live.get(p.mt5_ticket, 0.0)
+                        user_positions.setdefault(p.user_id, []).append(p)
 
-                    for uid, fpl in user_floating.items():
-                        acc = db.query(Account).filter(Account.user_id == uid).first()
-                        if acc:
-                            acc.floating_pl = fpl
-                    db.commit()
+                    user_names = {u.id: u.name for u in db.query(User).filter(User.is_admin == False).all()}
+                    for user_id, positions in user_positions.items():
+                        acc = db.query(Account).filter(Account.user_id == user_id).first()
+                        if not acc:
+                            continue
+                        floating = sum(live.get(p.mt5_ticket, 0.0) for p in positions)
+                        equity = float(acc.balance) + floating
+
+                        if equity < threshold:
+                            # Margin call — close all open positions for this user
+                            for pos in positions:
+                                if pos.status != PositionStatus.open:
+                                    continue
+                                is_short = (pos.direction == "sell")
+                                close_price = ask if is_short else bid
+                                result = _close_position(
+                                    pos.mt5_ticket, float(pos.volume),
+                                    close_price, user_id, is_short,
+                                    user_names.get(user_id, "")
+                                )
+                                if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                                    profit = _get_closed_profit(pos.mt5_ticket)
+                                    pos.status = PositionStatus.closed
+                                    pos.close_time = datetime.utcnow()
+                                    pos.close_price = close_price
+                                    pos.profit = profit
+                                    acc.balance = float(acc.balance) + profit
+                                    db.add(Transaction(
+                                        user_id=user_id,
+                                        type=TransactionType.sell,
+                                        amount=profit,
+                                        price=close_price,
+                                        volume=float(pos.volume),
+                                        mt5_ticket=pos.mt5_ticket,
+                                        note=f"MARGIN CALL — equity ${round(equity,2)} below ${threshold} | P&L: ${round(profit,2)}",
+                                    ))
+                            db.commit()
                 finally:
                     db.close()
         except Exception:
@@ -182,7 +235,7 @@ def _sync_daily_snapshot_loop():
 def _launch_bg_threads():
     """Launched as a safe dummy thread; waits then starts MT5-dependent threads."""
     time.sleep(3)
-    for fn in (_sync_auto_sell_loop, _sync_floating_pl_loop, _sync_daily_snapshot_loop):
+    for fn in (_sync_floating_pl_loop, _sync_margin_call_loop, _sync_daily_snapshot_loop):
         threading.Thread(target=fn, daemon=True).start()
 
 

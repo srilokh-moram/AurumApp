@@ -2,7 +2,7 @@ import asyncio
 import json
 from typing import Set
 from fastapi import WebSocket
-from services.mt5_service import get_tick
+from services.mt5_service import get_tick, _get_live_profits
 
 _clients: Set[WebSocket] = set()
 
@@ -16,14 +16,14 @@ def remove_client(ws: WebSocket):
 
 
 async def broadcast_loop():
-    last_tick = None
+    loop = asyncio.get_running_loop()
     while True:
         try:
             tick = await get_tick()
-            if tick and tick != last_tick:
-                last_tick = tick
+            if tick and _clients:
+                live = await loop.run_in_executor(None, _get_live_profits)
+                msg = json.dumps({**tick, "positions": live})
                 dead = set()
-                msg = json.dumps(tick)
                 for ws in list(_clients):
                     try:
                         await ws.send_text(msg)

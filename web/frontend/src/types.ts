@@ -72,6 +72,21 @@ export interface AdminUser {
   open_positions: number;
 }
 
+export interface AdminTransaction {
+  id: number;
+  user_id: number;
+  user_name: string;
+  user_email: string;
+  type: "buy" | "sell" | "deposit" | "withdrawal";
+  amount: number;
+  price?: number;
+  volume?: number;
+  lot_size?: number;
+  mt5_ticket?: number;
+  note?: string;
+  created_at: string;
+}
+
 export interface AdminPosition {
   id: number;
   user_id: number;
@@ -85,4 +100,25 @@ export interface AdminPosition {
   grid_gap: number;
   entry_time: string;
   floating_pl: number;
+}
+
+export interface AdminPositionDetail {
+  id: number;
+  user_id: number;
+  user_name: string;
+  user_email: string;
+  user_balance: number;
+  mt5_ticket: number;
+  symbol: string;
+  direction: "buy" | "sell";
+  entry_price: number;
+  volume: number;
+  lot_size: number;
+  grid_gap: number;
+  status: "open" | "closed";
+  entry_time: string;
+  close_time?: string;
+  close_price?: number;
+  profit?: number;
+  floating_pl?: number;
 }

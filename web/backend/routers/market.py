@@ -1,6 +1,6 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from services.price_feed import add_client, remove_client
-from services.mt5_service import get_candles, get_tick
+from services.mt5_service import get_candles, get_tick, get_live_profits
 import json
 
 router = APIRouter(tags=["market"])
@@ -22,10 +22,11 @@ async def tick():
 async def websocket_prices(websocket: WebSocket):
     await websocket.accept()
 
-    # Send current tick immediately on connect
+    # Send current tick + live positions immediately on connect
     tick = await get_tick()
+    live = await get_live_profits()
     if tick:
-        await websocket.send_text(json.dumps(tick))
+        await websocket.send_text(json.dumps({**tick, "positions": live}))
 
     add_client(websocket)
     try:
