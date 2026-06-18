@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 165 126">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 165 132">
   <defs>
     <linearGradient id="goldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%"   stop-color="#FFD700"/>
@@ -15,7 +15,7 @@
   </defs>
 
   <!-- Dark navy background -->
-  <rect width="165" height="126" fill="#0d1b2a" rx="10"/>
+  <rect width="165" height="132" fill="#0d1b2a" rx="10"/>
 
   <!-- "C" — white. At 96px, C glyph width ≈ 63px → ends at ~x=64 -->
   <text x="1" y="92"
@@ -46,11 +46,11 @@
   <rect x="82"   y="26"  width="8" height="30" fill="#2ecc71" rx="1.2"/>
 
   <!-- MARKETS label — centered -->
-  <text x="82" y="119"
+  <text x="82" y="126"
     font-family="Arial, Helvetica, sans-serif"
     font-weight="700"
-    font-size="16"
+    font-size="22"
     fill="#94a3b8"
     text-anchor="middle"
-    letter-spacing="5">MARKETS</text>
+    letter-spacing="4">MARKETS</text>
 </svg>
