@@ -148,22 +148,12 @@ export default function LiveChart({ tick }: Props) {
 
   return (
     <div className="flex flex-col w-full h-full">
-      {/* Header: bid/ask + timeframe buttons */}
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-[#1f2937] shrink-0 flex-wrap">
-        <div className="flex items-center gap-2">
-          {tick ? (
-            <>
-              <span className="text-white font-mono font-bold text-sm sm:text-base">{tick.ask.toFixed(2)}</span>
-              <span className="text-[10px] text-gray-600 uppercase tracking-wider">Ask</span>
-              <span className="text-gray-700 text-xs mx-0.5">|</span>
-              <span className="text-gray-400 font-mono text-xs sm:text-sm">{tick.bid.toFixed(2)}</span>
-              <span className="text-[10px] text-gray-600 uppercase tracking-wider">Bid</span>
-            </>
-          ) : (
-            <span className="text-gray-600 text-xs">Connecting…</span>
-          )}
-        </div>
-        <div className="flex gap-0.5 flex-wrap justify-end">
+      {/* Header: live price + timeframe buttons */}
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-[#1f2937] shrink-0">
+        <span className="text-white font-mono font-bold text-sm sm:text-base">
+          {tick ? tick.ask.toFixed(2) : "—"}
+        </span>
+        <div className="flex gap-0.5">
           {TIMEFRAMES.map((t) => (
             <button
               key={t}
