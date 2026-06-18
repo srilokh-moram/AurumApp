@@ -236,7 +236,7 @@ export default function Navbar() {
             {liveEquity !== null && (
               <div className="flex items-center gap-1.5 bg-gold-400/10 border border-gold-400/20 rounded-lg px-3 py-2">
                 <Wallet size={13} className="text-gold-400" />
-                <span className="text-xs text-gray-400">Balance</span>
+                <span className="text-xs text-gray-400">Equity</span>
                 <span className="text-sm font-mono font-bold text-gold-400">{fmt(liveEquity)}</span>
               </div>
             )}

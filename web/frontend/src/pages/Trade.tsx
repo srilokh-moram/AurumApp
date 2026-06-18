@@ -12,7 +12,9 @@ export default function Trade() {
   const [positions, setPositions] = useState<Position[]>([]);
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   const [closing, setClosing] = useState(false);
+  const [closeError, setCloseError] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   function loadPositions() {
     return api.get("/trading/positions/open").then((r) => setPositions(r.data));
@@ -24,11 +26,12 @@ export default function Trade() {
 
   async function handleCancelPending(id: number) {
     setCancellingId(id);
+    setCancelError(null);
     try {
       await api.delete(`/trading/pending/${id}`);
       await loadPending();
     } catch (err: any) {
-      alert(err.response?.data?.detail || "Failed to cancel");
+      setCancelError(err.response?.data?.detail || "Failed to cancel order");
     } finally {
       setCancellingId(null);
     }
@@ -49,11 +52,12 @@ export default function Trade() {
 
   async function handleSell(positionId: number) {
     setClosing(true);
+    setCloseError(null);
     try {
       await api.post(`/trading/sell/${positionId}`);
       await loadPositions();
     } catch (err: any) {
-      alert(err.response?.data?.detail || "Failed to close position");
+      setCloseError(err.response?.data?.detail || "Failed to close position");
     } finally {
       setClosing(false);
     }
@@ -81,6 +85,11 @@ export default function Trade() {
             <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Pending Orders</h2>
             <span className="bg-amber-400/10 text-amber-400 text-xs px-2 py-0.5 rounded-full font-medium">{pendingOrders.length}</span>
           </div>
+          {cancelError && (
+            <div className="mb-3 text-xs bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg px-3 py-2">
+              {cancelError}
+            </div>
+          )}
           <PendingOrderTable
             orders={pendingOrders}
             tick={tick}
@@ -111,6 +120,11 @@ export default function Trade() {
             </div>
           )}
         </div>
+        {closeError && (
+          <div className="mb-3 text-xs bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg px-3 py-2">
+            {closeError}
+          </div>
+        )}
         <PositionTable positions={positionsWithLivePL} onSell={handleSell} onModify={loadPositions} loading={closing} tick={tick} />
       </div>
     </div>

@@ -1,58 +1,55 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 210 115">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 210 120">
   <defs>
-    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%"   stop-color="#42a5f5"/>
-      <stop offset="100%" stop-color="#1565c0"/>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#FFD700"/>
+      <stop offset="100%" stop-color="#F5A623"/>
     </linearGradient>
     <linearGradient id="whiteGrad" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%"   stop-color="#ffffff"/>
       <stop offset="100%" stop-color="#c8d6e5"/>
     </linearGradient>
-    <filter id="textGlow" x="-10%" y="-10%" width="120%" height="120%">
-      <feGaussianBlur stdDeviation="2" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <filter id="greenGlow" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="1.8" result="blur"/>
       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
 
+  <!-- Dark navy background -->
+  <rect width="210" height="120" fill="#0d1b2a" rx="10"/>
+
   <!-- "C" — white gradient, bold -->
-  <text x="2" y="90"
-    font-family="'Arial Black', 'Haettenschweiler', Impact, sans-serif"
+  <text x="2" y="93"
+    font-family="'Arial Black', Impact, 'Haettenschweiler', sans-serif"
     font-weight="900"
     font-size="98"
-    fill="url(#whiteGrad)"
-    filter="url(#textGlow)">C</text>
+    fill="url(#whiteGrad)">C</text>
 
-  <!-- "B" — blue gradient, bold -->
-  <text x="106" y="90"
-    font-family="'Arial Black', 'Haettenschweiler', Impact, sans-serif"
+  <!-- "B" — gold/yellow gradient, bold -->
+  <text x="106" y="93"
+    font-family="'Arial Black', Impact, 'Haettenschweiler', sans-serif"
     font-weight="900"
     font-size="98"
-    fill="url(#blueGrad)"
-    filter="url(#textGlow)">B</text>
+    fill="url(#goldGrad)">B</text>
 
-  <!-- Candlestick chart — in the gap between C opening and B -->
+  <!-- Candlestick chart — spans the gap between C opening and B left edge -->
 
-  <!-- Candle 1: green / bullish -->
-  <line x1="90"  y1="16" x2="90"  y2="76" stroke="#2ecc71" stroke-width="1.5" filter="url(#greenGlow)"/>
-  <rect x="86.5" y="26"  width="7" height="35" fill="#2ecc71" rx="1.2"/>
+  <!-- Green candle (left) -->
+  <line x1="82"  y1="14" x2="82"  y2="79" stroke="#2ecc71" stroke-width="1.6" filter="url(#glow)"/>
+  <rect x="78.5" y="24"  width="7" height="37" fill="#2ecc71" rx="1.2"/>
 
-  <!-- Candle 2: red / bearish (tallest) -->
-  <line x1="101" y1="10" x2="101" y2="78" stroke="#e74c3c" stroke-width="1.5" filter="url(#greenGlow)"/>
-  <rect x="97.5" y="18"  width="7" height="40" fill="#e74c3c" rx="1.2"/>
+  <!-- Red candle (center — tallest) -->
+  <line x1="93"  y1="10" x2="93"  y2="82" stroke="#e74c3c" stroke-width="1.6" filter="url(#glow)"/>
+  <rect x="89.5" y="18"  width="7" height="44" fill="#e74c3c" rx="1.2"/>
 
-  <!-- Candle 3: green / bullish (short) -->
-  <line x1="112" y1="20" x2="112" y2="72" stroke="#2ecc71" stroke-width="1.5" filter="url(#greenGlow)"/>
-  <rect x="108.5" y="30" width="7" height="27" fill="#2ecc71" rx="1.2"/>
+  <!-- Green candle (right) -->
+  <line x1="104" y1="17" x2="104" y2="77" stroke="#2ecc71" stroke-width="1.6" filter="url(#glow)"/>
+  <rect x="100.5" y="27" width="7" height="32" fill="#2ecc71" rx="1.2"/>
 
-  <!-- "MARKETS" label -->
-  <text x="105" y="110"
+  <!-- MARKETS label -->
+  <text x="105" y="114"
     font-family="Arial, Helvetica, sans-serif"
     font-weight="700"
-    font-size="13"
+    font-size="12.5"
     fill="#94a3b8"
     text-anchor="middle"
     letter-spacing="6">MARKETS</text>

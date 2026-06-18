@@ -7,6 +7,7 @@ import StatCard from "../components/StatCard";
 import BalanceChart from "../components/BalanceChart";
 import { format } from "date-fns";
 import { useMarket } from "../context/MarketContext";
+import { useAccount } from "../context/AccountContext";
 
 function fmt(n: number) {
   return `$${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -14,50 +15,35 @@ function fmt(n: number) {
 
 export default function Dashboard() {
   const { livePositions } = useMarket();
+  const { balance: liveBalance, myTickets } = useAccount();
   const [summary, setSummary] = useState<AccountSummary | null>(null);
   const [history, setHistory] = useState<BalancePoint[]>([]);
   const [txs, setTxs] = useState<Transaction[]>([]);
-  const [myTickets, setMyTickets] = useState<number[]>([]);
   const [pendingWithdrawal, setPendingWithdrawal] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  function refreshSummary() {
-    return Promise.all([
-      api.get("/account/summary"),
-      api.get("/trading/positions/open"),
-    ]).then(([s, p]) => {
-      setSummary(s.data);
-      setMyTickets(p.data.map((pos: any) => pos.mt5_ticket));
-    });
-  }
 
   useEffect(() => {
     Promise.all([
       api.get("/account/summary"),
       api.get("/account/balance-history"),
       api.get("/account/transactions?limit=10"),
-      api.get("/trading/positions/open"),
       api.get("/account/withdrawals"),
-    ]).then(([s, h, t, p, w]) => {
+    ]).then(([s, h, t, w]) => {
       setSummary(s.data);
       setHistory(h.data);
       setTxs(t.data);
-      setMyTickets(p.data.map((pos: any) => pos.mt5_ticket));
       setPendingWithdrawal((w.data as WithdrawalRequest[]).some((r) => r.status === "pending"));
     }).finally(() => setLoading(false));
-
-    // Refresh balance and position list every 5s to catch closes, deposits, etc.
-    const interval = setInterval(refreshSummary, 5000);
-    return () => clearInterval(interval);
   }, []);
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-gray-600">Loading...</div>;
   }
 
-  // Live floating P&L computed from WS stream — updates every ~0.5s
+  // Live floating P&L from WS stream (0.5s); balance from AccountContext (5s)
   const liveFloating = myTickets.reduce((s, t) => s + (livePositions[t] ?? 0), 0);
-  const liveEquity = summary ? summary.balance + liveFloating : null;
+  const balance = liveBalance ?? summary?.balance ?? null;
+  const liveEquity = balance !== null ? balance + liveFloating : null;
   const floatingColor = liveFloating >= 0 ? "green" : "red";
   const profitColor = !summary ? "default" : summary.today_profit >= 0 ? "green" : "red";
 
@@ -87,7 +73,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Balance"
-          value={summary ? fmt(summary.balance) : "—"}
+          value={balance !== null ? fmt(balance) : "—"}
           sub={`Limit: ${summary ? fmt(summary.allocated_limit) : "—"}`}
           icon={<Wallet size={16} />}
           color="gold"
