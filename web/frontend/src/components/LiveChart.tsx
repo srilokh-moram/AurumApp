@@ -98,6 +98,8 @@ export default function LiveChart({ tick }: Props) {
   useEffect(() => {
     tfRef.current = tf;
     if (!seriesRef.current) return;
+    // Clear immediately so tick updates don't conflict with old-timeframe data
+    seriesRef.current.setData([]);
     lastCandleRef.current = null;
 
     api.get(`/market/candles?timeframe=${tf}&count=${TF_COUNT[tf]}`).then((res) => {
