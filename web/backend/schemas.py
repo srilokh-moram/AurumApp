@@ -82,11 +82,13 @@ class TransactionOut(BaseModel):
 
 class BuyRequest(BaseModel):
     lot_size: float
+    symbol: str = "XAUUSD"
     take_profit: Optional[float] = None
     stop_loss: Optional[float] = None
 
 class SellOrderRequest(BaseModel):
     lot_size: float
+    symbol: str = "XAUUSD"
     take_profit: Optional[float] = None
     stop_loss: Optional[float] = None
 
@@ -98,6 +100,7 @@ class PendingOrderRequest(BaseModel):
     direction: str          # "buy" or "sell"
     target_price: float
     lot_size: float
+    symbol: str = "XAUUSD"
     take_profit: Optional[float] = None
     stop_loss: Optional[float] = None
 
@@ -110,6 +113,7 @@ class PendingOrderOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     mt5_ticket: int
+    symbol: str
     direction: str
     order_type: str
     target_price: Decimal

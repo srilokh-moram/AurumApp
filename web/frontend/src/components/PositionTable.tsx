@@ -84,9 +84,10 @@ interface Props {
   onModify?: () => void;
   loading?: boolean;
   tick?: Tick | null;
+  silverTick?: Tick | null;
 }
 
-export default function PositionTable({ positions, onSell, onModify, loading, tick }: Props) {
+export default function PositionTable({ positions, onSell, onModify, loading, tick, silverTick }: Props) {
   const [modifyId, setModifyId] = useState<number | null>(null);
   const [tpEnabled, setTpEnabled] = useState(false);
   const [slEnabled, setSlEnabled] = useState(false);
@@ -101,8 +102,9 @@ export default function PositionTable({ positions, onSell, onModify, loading, ti
     setModifyMsg(null);
     setTpEnabled(false);
     setSlEnabled(false);
-    setTpPrice(tick ? (tick.ask + 10).toFixed(2) : "");
-    setSlPrice(tick ? (tick.bid - 10).toFixed(2) : "");
+    const posTick = pos.symbol === "XAGUSD" ? silverTick : tick;
+    setTpPrice(posTick ? (posTick.ask + 10).toFixed(2) : "");
+    setSlPrice(posTick ? (posTick.bid - 10).toFixed(2) : "");
     try {
       const res = await api.get(`/trading/positions/${pos.id}/tpsl`);
       if (res.data.tp > 0) { setTpEnabled(true); setTpPrice(res.data.tp.toFixed(2)); }
@@ -131,7 +133,7 @@ export default function PositionTable({ positions, onSell, onModify, loading, ti
     return <div className="text-center py-12 text-gray-600 text-sm">No positions to show</div>;
   }
 
-  const colCount = onSell ? 7 : 8;
+  const colCount = onSell ? 8 : 9;
 
   return (
     <>
@@ -148,6 +150,9 @@ export default function PositionTable({ positions, onSell, onModify, loading, ti
                   <div className="flex items-center gap-2">
                     <span className={`text-xs font-bold px-2 py-0.5 rounded ${p.direction === "sell" ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400"}`}>
                       {(p.direction ?? "buy").toUpperCase()}
+                    </span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1f2937] text-gray-400">
+                      {p.symbol}
                     </span>
                     <span className="text-xs text-gray-500 font-mono">#{p.mt5_ticket}</span>
                   </div>
@@ -196,7 +201,7 @@ export default function PositionTable({ positions, onSell, onModify, loading, ti
               {isModifying && (
                 <div className="border-t border-[#1f2937]">
                   <ModifyForm
-                    posId={p.id} tick={tick}
+                    posId={p.id} tick={p.symbol === "XAGUSD" ? silverTick : tick}
                     tpEnabled={tpEnabled} slEnabled={slEnabled}
                     tpPrice={tpPrice} slPrice={slPrice}
                     modifyLoading={modifyLoading} modifyMsg={modifyMsg}
@@ -216,7 +221,7 @@ export default function PositionTable({ positions, onSell, onModify, loading, ti
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[#1f2937]">
-              {["Dir", "Ticket", "Entry Price", "Lot", "Time", "P&L", onSell ? "Action" : "Close Price", onSell ? "" : "Profit"].filter(Boolean).map((h) => (
+              {["Dir", "Symbol", "Ticket", "Entry Price", "Lot", "Time", "P&L", onSell ? "Action" : "Close Price", onSell ? "" : "Profit"].filter(Boolean).map((h) => (
                 <th key={h} className="text-left py-3 px-3 text-xs text-gray-500 font-medium uppercase tracking-wider">{h}</th>
               ))}
             </tr>
@@ -232,6 +237,11 @@ export default function PositionTable({ positions, onSell, onModify, loading, ti
                     <td className="py-3 px-3">
                       <span className={`text-xs font-bold px-2 py-0.5 rounded ${p.direction === "sell" ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400"}`}>
                         {(p.direction ?? "buy").toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3">
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1f2937] text-gray-400">
+                        {p.symbol}
                       </span>
                     </td>
                     <td className="py-3 px-3 font-mono text-gray-400 text-xs">{p.mt5_ticket}</td>
@@ -266,7 +276,7 @@ export default function PositionTable({ positions, onSell, onModify, loading, ti
                     <tr className="border-b border-[#1f2937]">
                       <td colSpan={colCount}>
                         <ModifyForm
-                          posId={p.id} tick={tick}
+                          posId={p.id} tick={p.symbol === "XAGUSD" ? silverTick : tick}
                           tpEnabled={tpEnabled} slEnabled={slEnabled}
                           tpPrice={tpPrice} slPrice={slPrice}
                           modifyLoading={modifyLoading} modifyMsg={modifyMsg}

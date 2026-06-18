@@ -14,7 +14,6 @@ from models.balance_snapshot import BalanceSnapshot
 from schemas import BuyRequest, SellOrderRequest, ModifyPositionRequest, PendingOrderRequest, ModifyPendingRequest, PendingOrderOut
 from services import mt5_service
 from services.mt5_service import get_deal_profit
-from config import SYMBOL
 
 router = APIRouter(prefix="/trading", tags=["trading"])
 
@@ -56,7 +55,7 @@ async def buy(
     if equity <= 0:
         raise HTTPException(status_code=400, detail="Insufficient equity to place a trade")
 
-    tick = await mt5_service.get_tick()
+    tick = await mt5_service.get_tick(data.symbol)
     if not tick:
         raise HTTPException(status_code=503, detail="Market price unavailable")
 
@@ -65,6 +64,7 @@ async def buy(
         ask, data.lot_size, user.id, 0, user.name,
         tp=data.take_profit or 0.0,
         sl=data.stop_loss or 0.0,
+        symbol=data.symbol,
     )
 
     if not result or result.retcode != mt5.TRADE_RETCODE_DONE:
@@ -74,7 +74,7 @@ async def buy(
     db.add(Position(
         user_id=user.id,
         mt5_ticket=result.order,
-        symbol=SYMBOL,
+        symbol=data.symbol,
         entry_price=ask,
         volume=data.lot_size,
         lot_size=data.lot_size,
@@ -109,7 +109,7 @@ async def short(
     if equity <= 0:
         raise HTTPException(status_code=400, detail="Insufficient equity to place a trade")
 
-    tick = await mt5_service.get_tick()
+    tick = await mt5_service.get_tick(data.symbol)
     if not tick:
         raise HTTPException(status_code=503, detail="Market price unavailable")
 
@@ -118,6 +118,7 @@ async def short(
         bid, data.lot_size, user.id, 0, user.name,
         tp=data.take_profit or 0.0,
         sl=data.stop_loss or 0.0,
+        symbol=data.symbol,
     )
 
     if not result or result.retcode != mt5.TRADE_RETCODE_DONE:
@@ -127,7 +128,7 @@ async def short(
     db.add(Position(
         user_id=user.id,
         mt5_ticket=result.order,
-        symbol=SYMBOL,
+        symbol=data.symbol,
         entry_price=bid,
         volume=data.lot_size,
         lot_size=data.lot_size,
@@ -163,13 +164,13 @@ async def sell(
     if not pos:
         raise HTTPException(status_code=404, detail="Open position not found")
 
-    tick = await mt5_service.get_tick()
+    tick = await mt5_service.get_tick(pos.symbol)
     if not tick:
         raise HTTPException(status_code=503, detail="Market price unavailable")
 
     is_short = (pos.direction == "sell")
     close_price = tick["ask"] if is_short else tick["bid"]
-    result = await mt5_service.close_position(pos.mt5_ticket, float(pos.volume), close_price, user.id, is_short, user.name)
+    result = await mt5_service.close_position(pos.mt5_ticket, float(pos.volume), close_price, user.id, is_short, user.name, pos.symbol)
 
     if not result or result.retcode != mt5.TRADE_RETCODE_DONE:
         code = result.retcode if result else "N/A"
@@ -265,6 +266,7 @@ async def modify_position(
         pos.mt5_ticket,
         tp=data.take_profit or 0.0,
         sl=data.stop_loss or 0.0,
+        symbol=pos.symbol,
     )
     if not result or result.retcode != mt5.TRADE_RETCODE_DONE:
         code = result.retcode if result else "N/A"
@@ -282,7 +284,7 @@ async def place_pending(
     if data.direction not in ("buy", "sell"):
         raise HTTPException(status_code=400, detail="direction must be 'buy' or 'sell'")
 
-    tick = await mt5_service.get_tick()
+    tick = await mt5_service.get_tick(data.symbol)
     if not tick:
         raise HTTPException(status_code=503, detail="Market price unavailable")
 
@@ -300,6 +302,7 @@ async def place_pending(
         user_name=user.name,
         tp=data.take_profit or 0.0,
         sl=data.stop_loss or 0.0,
+        symbol=data.symbol,
     )
 
     if not result or result.retcode != mt5.TRADE_RETCODE_DONE:
@@ -309,7 +312,7 @@ async def place_pending(
     po = PendingOrder(
         user_id=user.id,
         mt5_ticket=result.order,
-        symbol=SYMBOL,
+        symbol=data.symbol,
         direction=data.direction,
         order_type=order_type,
         target_price=data.target_price,
@@ -361,7 +364,7 @@ async def modify_pending(
         raise HTTPException(status_code=400, detail=f"Modify rejected by broker (code {code})")
 
     # Re-detect order type in case price crossed the market
-    tick = await mt5_service.get_tick()
+    tick = await mt5_service.get_tick(po.symbol)
     if tick:
         if po.direction == "buy":
             po.order_type = "buy_stop" if data.target_price > tick["ask"] else "buy_limit"

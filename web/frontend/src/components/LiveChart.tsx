@@ -42,9 +42,10 @@ const VISIBLE_BARS: Record<TF, number> = {
 
 interface Props {
   tick: Tick | null;
+  symbol?: string;
 }
 
-export default function LiveChart({ tick }: Props) {
+export default function LiveChart({ tick, symbol = "XAUUSD" }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -117,7 +118,7 @@ export default function LiveChart({ tick }: Props) {
     lastCandleRef.current = null;
     try { seriesRef.current.setData([]); } catch { /* ignore */ }
 
-    api.get(`/market/candles?timeframe=${tf}&count=${TF_COUNT[tf]}`).then((res) => {
+    api.get(`/market/candles?timeframe=${tf}&count=${TF_COUNT[tf]}&symbol=${symbol}`).then((res) => {
       if (!seriesRef.current || !chartRef.current || tfRef.current !== tf) return;
       const data = res.data as CandlestickData[];
       if (data.length === 0) return;
@@ -132,7 +133,7 @@ export default function LiveChart({ tick }: Props) {
         });
       } catch { /* ignore */ }
     });
-  }, [tf]);
+  }, [tf, symbol]);
 
   // Update last candle with live tick
   useEffect(() => {

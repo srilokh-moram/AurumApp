@@ -192,14 +192,14 @@ async def force_close(position_id: int, admin=Depends(get_admin_user), db: Sessi
     if not pos:
         raise HTTPException(status_code=404, detail="Position not found")
 
-    tick = await get_tick()
+    tick = await get_tick(pos.symbol)
     if not tick:
         raise HTTPException(status_code=503, detail="Market price unavailable")
 
     is_short = (pos.direction == "sell")
     close_price = tick["ask"] if is_short else tick["bid"]
     pos_user = db.query(User).filter(User.id == pos.user_id).first()
-    result = await close_position(pos.mt5_ticket, float(pos.volume), close_price, pos.user_id, is_short, pos_user.name if pos_user else "")
+    result = await close_position(pos.mt5_ticket, float(pos.volume), close_price, pos.user_id, is_short, pos_user.name if pos_user else "", pos.symbol)
 
     if not result or result.retcode != mt5.TRADE_RETCODE_DONE:
         raise HTTPException(status_code=400, detail="Close failed")

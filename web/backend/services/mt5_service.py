@@ -2,7 +2,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 import MetaTrader5 as mt5
-from config import MT5_LOGIN, MT5_PASSWORD, MT5_SERVER, SYMBOL
+from config import MT5_LOGIN, MT5_PASSWORD, MT5_SERVER, SYMBOL, SYMBOL_SILVER, SYMBOL_SPREADS
 
 _executor = ThreadPoolExecutor(max_workers=4)
 _connected = False
@@ -18,6 +18,7 @@ def _connect() -> bool:
     ok = mt5.initialize(login=MT5_LOGIN, password=MT5_PASSWORD, server=MT5_SERVER)
     if ok:
         mt5.symbol_select(SYMBOL, True)
+        mt5.symbol_select(SYMBOL_SILVER, True)
         _connected = True
     return ok
 
@@ -29,21 +30,19 @@ async def ensure_connected() -> bool:
 
 # ── Tick data ─────────────────────────────────────────────────────────────────
 
-FIXED_SPREAD = 1.8
-
-
-def _get_tick() -> Optional[dict]:
+def _get_tick(symbol: str) -> Optional[dict]:
     if not _connect():
         return None
-    tick = mt5.symbol_info_tick(SYMBOL)
+    tick = mt5.symbol_info_tick(symbol)
     if tick is None or tick.bid == 0:
         return None
-    return {"bid": tick.bid, "ask": round(tick.bid + FIXED_SPREAD, 5), "time": tick.time}
+    spread = SYMBOL_SPREADS.get(symbol, 1.8)
+    return {"bid": tick.bid, "ask": round(tick.bid + spread, 5), "time": tick.time}
 
 
-async def get_tick() -> Optional[dict]:
+async def get_tick(symbol: str = SYMBOL) -> Optional[dict]:
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(_executor, _get_tick)
+    return await loop.run_in_executor(_executor, _get_tick, symbol)
 
 
 # ── Historical candles ────────────────────────────────────────────────────────
@@ -60,12 +59,12 @@ _TF_MAP = {
 }
 
 
-def _get_candles(count: int = 200, timeframe: str = "M1") -> list:
+def _get_candles(count: int = 200, timeframe: str = "M1", symbol: str = SYMBOL) -> list:
     if not _connect():
         return []
     tf_attr = _TF_MAP.get(timeframe.upper(), "TIMEFRAME_M1")
     tf = getattr(mt5, tf_attr, mt5.TIMEFRAME_M1)
-    rates = mt5.copy_rates_from_pos(SYMBOL, tf, 0, count)
+    rates = mt5.copy_rates_from_pos(symbol, tf, 0, count)
     if rates is None:
         return []
     return [
@@ -75,9 +74,9 @@ def _get_candles(count: int = 200, timeframe: str = "M1") -> list:
     ]
 
 
-async def get_candles(count: int = 200, timeframe: str = "M1") -> list:
+async def get_candles(count: int = 200, timeframe: str = "M1", symbol: str = SYMBOL) -> list:
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(_executor, _get_candles, count, timeframe)
+    return await loop.run_in_executor(_executor, _get_candles, count, timeframe, symbol)
 
 
 # ── Order execution ───────────────────────────────────────────────────────────
@@ -88,13 +87,13 @@ def _short_name(user_name: str, user_id: int) -> str:
     return word if word else f"u{user_id}"
 
 
-def _place_buy(price: float, volume: float, user_id: int, grid_gap: float, user_name: str = "", tp: float = 0.0, sl: float = 0.0):
+def _place_buy(price: float, volume: float, user_id: int, grid_gap: float, user_name: str = "", tp: float = 0.0, sl: float = 0.0, symbol: str = SYMBOL):
     if not _connect():
         return None
     tag = _short_name(user_name, user_id)
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
-        "symbol": SYMBOL,
+        "symbol": symbol,
         "volume": volume,
         "type": mt5.ORDER_TYPE_BUY,
         "price": price,
@@ -109,14 +108,14 @@ def _place_buy(price: float, volume: float, user_id: int, grid_gap: float, user_
     return mt5.order_send(request)
 
 
-def _place_sell(price: float, volume: float, user_id: int, grid_gap: float, user_name: str = "", tp: float = 0.0, sl: float = 0.0):
+def _place_sell(price: float, volume: float, user_id: int, grid_gap: float, user_name: str = "", tp: float = 0.0, sl: float = 0.0, symbol: str = SYMBOL):
     """Open a new short (sell) position."""
     if not _connect():
         return None
     tag = _short_name(user_name, user_id)
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
-        "symbol": SYMBOL,
+        "symbol": symbol,
         "volume": volume,
         "type": mt5.ORDER_TYPE_SELL,
         "price": price,
@@ -131,14 +130,14 @@ def _place_sell(price: float, volume: float, user_id: int, grid_gap: float, user
     return mt5.order_send(request)
 
 
-def _close_position(ticket: int, volume: float, price: float, user_id: int, is_short: bool = False, user_name: str = ""):
+def _close_position(ticket: int, volume: float, price: float, user_id: int, is_short: bool = False, user_name: str = "", symbol: str = SYMBOL):
     """Close a position. Use is_short=True to close a short (sends a BUY to close)."""
     if not _connect():
         return None
     tag = _short_name(user_name, user_id)
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
-        "symbol": SYMBOL,
+        "symbol": symbol,
         "volume": volume,
         "type": mt5.ORDER_TYPE_BUY if is_short else mt5.ORDER_TYPE_SELL,
         "position": ticket,
@@ -152,19 +151,19 @@ def _close_position(ticket: int, volume: float, price: float, user_id: int, is_s
     return mt5.order_send(request)
 
 
-async def place_buy(price: float, volume: float, user_id: int, grid_gap: float, user_name: str = "", tp: float = 0.0, sl: float = 0.0):
+async def place_buy(price: float, volume: float, user_id: int, grid_gap: float, user_name: str = "", tp: float = 0.0, sl: float = 0.0, symbol: str = SYMBOL):
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(_executor, _place_buy, price, volume, user_id, grid_gap, user_name, tp, sl)
+    return await loop.run_in_executor(_executor, _place_buy, price, volume, user_id, grid_gap, user_name, tp, sl, symbol)
 
 
-async def place_sell(price: float, volume: float, user_id: int, grid_gap: float, user_name: str = "", tp: float = 0.0, sl: float = 0.0):
+async def place_sell(price: float, volume: float, user_id: int, grid_gap: float, user_name: str = "", tp: float = 0.0, sl: float = 0.0, symbol: str = SYMBOL):
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(_executor, _place_sell, price, volume, user_id, grid_gap, user_name, tp, sl)
+    return await loop.run_in_executor(_executor, _place_sell, price, volume, user_id, grid_gap, user_name, tp, sl, symbol)
 
 
-async def close_position(ticket: int, volume: float, price: float, user_id: int, is_short: bool = False, user_name: str = ""):
+async def close_position(ticket: int, volume: float, price: float, user_id: int, is_short: bool = False, user_name: str = "", symbol: str = SYMBOL):
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(_executor, _close_position, ticket, volume, price, user_id, is_short, user_name)
+    return await loop.run_in_executor(_executor, _close_position, ticket, volume, price, user_id, is_short, user_name, symbol)
 
 
 # ── Live position profit from MT5 ─────────────────────────────────────────────
@@ -198,12 +197,12 @@ async def get_position_tpsl(ticket: int) -> dict:
     return await loop.run_in_executor(_executor, _get_position_tpsl, ticket)
 
 
-def _modify_position(ticket: int, tp: float, sl: float):
+def _modify_position(ticket: int, tp: float, sl: float, symbol: str = SYMBOL):
     if not _connect():
         return None
     request = {
         "action": mt5.TRADE_ACTION_SLTP,
-        "symbol": SYMBOL,
+        "symbol": symbol,
         "position": ticket,
         "tp": tp,
         "sl": sl,
@@ -211,9 +210,9 @@ def _modify_position(ticket: int, tp: float, sl: float):
     return mt5.order_send(request)
 
 
-async def modify_position(ticket: int, tp: float, sl: float):
+async def modify_position(ticket: int, tp: float, sl: float, symbol: str = SYMBOL):
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(_executor, _modify_position, ticket, tp, sl)
+    return await loop.run_in_executor(_executor, _modify_position, ticket, tp, sl, symbol)
 
 
 # ── Deal profit after close ───────────────────────────────────────────────────
@@ -268,6 +267,7 @@ def _place_pending_order(
     user_name: str = "",
     tp: float = 0.0,
     sl: float = 0.0,
+    symbol: str = SYMBOL,
 ):
     if not _connect():
         return None
@@ -281,7 +281,7 @@ def _place_pending_order(
     direction = "buy" if "buy" in order_type_str else "sell"
     request = {
         "action": mt5.TRADE_ACTION_PENDING,
-        "symbol": SYMBOL,
+        "symbol": symbol,
         "volume": volume,
         "type": type_map[order_type_str],
         "price": price,
@@ -303,10 +303,11 @@ async def place_pending_order(
     user_name: str = "",
     tp: float = 0.0,
     sl: float = 0.0,
+    symbol: str = SYMBOL,
 ):
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(
-        _executor, _place_pending_order, order_type_str, price, volume, user_id, user_name, tp, sl
+        _executor, _place_pending_order, order_type_str, price, volume, user_id, user_name, tp, sl, symbol
     )
 
 

@@ -16,6 +16,8 @@ MT5_LOGIN = int(os.getenv("MT5_LOGIN", 0))
 MT5_PASSWORD = os.getenv("MT5_PASSWORD", "")
 MT5_SERVER = os.getenv("MT5_SERVER", "")
 SYMBOL = os.getenv("SYMBOL", "XAUUSD")
+SYMBOL_SILVER = os.getenv("SYMBOL_SILVER", "XAGUSD")
+SYMBOL_SPREADS = {SYMBOL: 1.8, SYMBOL_SILVER: 0.05}
 
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 587))

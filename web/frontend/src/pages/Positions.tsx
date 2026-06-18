@@ -5,7 +5,7 @@ import PositionTable from "../components/PositionTable";
 import { useMarket } from "../context/MarketContext";
 
 export default function Positions() {
-  const { livePositions, tick } = useMarket();
+  const { livePositions, tick, silverTick } = useMarket();
   const [all, setAll] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"open" | "closed">("open");
@@ -82,7 +82,7 @@ export default function Positions() {
           ))}
         </div>
 
-        <PositionTable positions={shown} tick={tick} />
+        <PositionTable positions={shown} tick={tick} silverTick={silverTick} />
       </div>
     </div>
   );

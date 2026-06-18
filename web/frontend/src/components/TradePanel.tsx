@@ -1,14 +1,23 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Tick } from "../types";
 import api from "../api";
 
-const LOT_PRESETS = [
+const GOLD_LOT_PRESETS = [
   { label: "$5",   lot: 0.05 },
   { label: "$10",  lot: 0.10 },
   { label: "$25",  lot: 0.25 },
   { label: "$50",  lot: 0.50 },
   { label: "$75",  lot: 0.75 },
   { label: "$100", lot: 1.00 },
+];
+
+const SILVER_LOT_PRESETS = [
+  { label: "0.05", lot: 0.05 },
+  { label: "0.10", lot: 0.10 },
+  { label: "0.25", lot: 0.25 },
+  { label: "0.50", lot: 0.50 },
+  { label: "0.75", lot: 0.75 },
+  { label: "1.00", lot: 1.00 },
 ];
 
 const ORDER_TYPE_LABELS: Record<string, { label: string; color: string }> = {
@@ -20,10 +29,14 @@ const ORDER_TYPE_LABELS: Record<string, { label: string; color: string }> = {
 
 interface Props {
   tick: Tick | null;
+  symbol?: string;
   onOrderPlaced: () => void;
 }
 
-export default function TradePanel({ tick, onOrderPlaced }: Props) {
+export default function TradePanel({ tick, symbol = "XAUUSD", onOrderPlaced }: Props) {
+  const isSilver = symbol === "XAGUSD";
+  const LOT_PRESETS = isSilver ? SILVER_LOT_PRESETS : GOLD_LOT_PRESETS;
+
   const [mode, setMode] = useState<"market" | "pending">("market");
 
   // ── Shared state ──
@@ -42,6 +55,13 @@ export default function TradePanel({ tick, onOrderPlaced }: Props) {
   const [pendingPrice, setPendingPrice] = useState("");
   const [pendingLoading, setPendingLoading] = useState<"buy" | "sell" | null>(null);
   const [pendingMsg, setPendingMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  // Reset preset when symbol changes
+  useEffect(() => {
+    setPreset(isSilver ? SILVER_LOT_PRESETS[0] : GOLD_LOT_PRESETS[0]);
+    setMarketMsg(null);
+    setPendingMsg(null);
+  }, [symbol]);
 
   // ── Helpers ──
   function adjustPrice(setter: React.Dispatch<React.SetStateAction<string>>, val: string, delta: number) {
@@ -76,7 +96,7 @@ export default function TradePanel({ tick, onOrderPlaced }: Props) {
   async function placeBuy() {
     setMarketLoading("buy"); setMarketMsg(null);
     try {
-      const res = await api.post("/trading/buy", { lot_size: preset.lot, ...getTpSl() });
+      const res = await api.post("/trading/buy", { lot_size: preset.lot, symbol, ...getTpSl() });
       setMarketMsg({ text: `BUY placed @ ${res.data.price}`, ok: true });
       onOrderPlaced();
     } catch (err: any) {
@@ -87,7 +107,7 @@ export default function TradePanel({ tick, onOrderPlaced }: Props) {
   async function placeSell() {
     setMarketLoading("sell"); setMarketMsg(null);
     try {
-      const res = await api.post("/trading/short", { lot_size: preset.lot, ...getTpSl() });
+      const res = await api.post("/trading/short", { lot_size: preset.lot, symbol, ...getTpSl() });
       setMarketMsg({ text: `SELL placed @ ${res.data.price}`, ok: true });
       onOrderPlaced();
     } catch (err: any) {
@@ -107,6 +127,7 @@ export default function TradePanel({ tick, onOrderPlaced }: Props) {
         direction,
         target_price: parseFloat(pendingPrice),
         lot_size: preset.lot,
+        symbol,
         ...getTpSl(),
       });
       const typeInfo = ORDER_TYPE_LABELS[res.data.order_type];
@@ -165,7 +186,9 @@ export default function TradePanel({ tick, onOrderPlaced }: Props) {
 
   const LotSection = (
     <div>
-      <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Amount</label>
+      <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">
+        {isSilver ? "Lot Size" : "Amount"}
+      </label>
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
         {LOT_PRESETS.map((p) => (
           <button
@@ -221,7 +244,7 @@ export default function TradePanel({ tick, onOrderPlaced }: Props) {
 
           <div className="bg-[#1f2937] rounded-lg p-3 text-xs space-y-1.5">
             <div className="flex justify-between text-gray-400">
-              <span>Amount</span>
+              <span>{isSilver ? "Lot Size" : "Amount"}</span>
               <span className="font-mono text-white">{preset.label} ({preset.lot} lot)</span>
             </div>
             <div className="flex justify-between text-gray-400">
@@ -297,7 +320,7 @@ export default function TradePanel({ tick, onOrderPlaced }: Props) {
               <span className="font-mono text-white">{pendingPrice || "—"}</span>
             </div>
             <div className="flex justify-between text-gray-400">
-              <span>Amount</span>
+              <span>{isSilver ? "Lot Size" : "Amount"}</span>
               <span className="font-mono text-white">{preset.label} ({preset.lot} lot)</span>
             </div>
             {tpEnabled && tpPrice && <div className="flex justify-between text-gray-400"><span>Take Profit</span><span className="font-mono text-emerald-400">{tpPrice}</span></div>}

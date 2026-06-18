@@ -7,8 +7,13 @@ import PendingOrderTable from "../components/PendingOrderTable";
 import api from "../api";
 import { useMarket } from "../context/MarketContext";
 
+type Symbol = "XAUUSD" | "XAGUSD";
+
 export default function Trade() {
-  const { tick, livePositions } = useMarket();
+  const { tick: goldTick, silverTick, livePositions } = useMarket();
+  const [symbol, setSymbol] = useState<Symbol>("XAUUSD");
+  const activeTick = symbol === "XAUUSD" ? goldTick : silverTick;
+
   const [positions, setPositions] = useState<Position[]>([]);
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   const [closing, setClosing] = useState(false);
@@ -67,15 +72,32 @@ export default function Trade() {
 
   return (
     <div className="space-y-4">
+      {/* Symbol toggle */}
+      <div className="flex items-center gap-2">
+        {(["XAUUSD", "XAGUSD"] as const).map((s) => (
+          <button
+            key={s}
+            onClick={() => setSymbol(s)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+              symbol === s
+                ? "bg-gold-400 text-black"
+                : "bg-[#1f2937] text-gray-400 hover:text-white"
+            }`}
+          >
+            {s === "XAUUSD" ? "Gold (XAUUSD)" : "Silver (XAGUSD)"}
+          </button>
+        ))}
+      </div>
+
       {/* Main trading area */}
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4 items-start">
         {/* Chart — responsive height */}
         <div className="card p-0 overflow-hidden h-[320px] sm:h-[420px] xl:h-[540px]">
-          <LiveChart tick={tick} />
+          <LiveChart tick={activeTick} symbol={symbol} />
         </div>
 
         {/* Trade panel — auto height */}
-        <TradePanel tick={tick} onOrderPlaced={() => { loadPositions(); loadPending(); }} />
+        <TradePanel tick={activeTick} symbol={symbol} onOrderPlaced={() => { loadPositions(); loadPending(); }} />
       </div>
 
       {/* Pending Orders */}
@@ -92,7 +114,7 @@ export default function Trade() {
           )}
           <PendingOrderTable
             orders={pendingOrders}
-            tick={tick}
+            tick={activeTick}
             onCancel={handleCancelPending}
             cancellingId={cancellingId}
             onModified={loadPending}
@@ -125,7 +147,7 @@ export default function Trade() {
             {closeError}
           </div>
         )}
-        <PositionTable positions={positionsWithLivePL} onSell={handleSell} onModify={loadPositions} loading={closing} tick={tick} />
+        <PositionTable positions={positionsWithLivePL} onSell={handleSell} onModify={loadPositions} loading={closing} tick={goldTick} silverTick={silverTick} />
       </div>
     </div>
   );

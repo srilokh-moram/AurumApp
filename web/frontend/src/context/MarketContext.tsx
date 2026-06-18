@@ -3,13 +3,15 @@ import { Tick } from "../types";
 
 interface MarketContextValue {
   tick: Tick | null;
+  silverTick: Tick | null;
   livePositions: Record<number, number>;
 }
 
-const MarketContext = createContext<MarketContextValue>({ tick: null, livePositions: {} });
+const MarketContext = createContext<MarketContextValue>({ tick: null, silverTick: null, livePositions: {} });
 
 export function MarketProvider({ children }: { children: ReactNode }) {
   const [tick, setTick] = useState<Tick | null>(null);
+  const [silverTick, setSilverTick] = useState<Tick | null>(null);
   const [livePositions, setLivePositions] = useState<Record<number, number>>({});
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -24,8 +26,9 @@ export function MarketProvider({ children }: { children: ReactNode }) {
 
       ws.onmessage = (e) => {
         try {
-          const { positions, ...tickData } = JSON.parse(e.data);
-          setTick(tickData as Tick);
+          const { positions, gold, silver } = JSON.parse(e.data);
+          if (gold) setTick(gold as Tick);
+          if (silver) setSilverTick(silver as Tick);
           if (positions) setLivePositions(positions);
         } catch {}
       };
@@ -50,7 +53,7 @@ export function MarketProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <MarketContext.Provider value={{ tick, livePositions }}>
+    <MarketContext.Provider value={{ tick, silverTick, livePositions }}>
       {children}
     </MarketContext.Provider>
   );

@@ -105,6 +105,7 @@ export interface AdminPosition {
 export interface PendingOrder {
   id: number;
   mt5_ticket: number;
+  symbol: string;
   direction: "buy" | "sell";
   order_type: "buy_limit" | "buy_stop" | "sell_limit" | "sell_stop";
   target_price: number;
