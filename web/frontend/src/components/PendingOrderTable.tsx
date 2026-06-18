@@ -14,6 +14,105 @@ const TYPE_LABELS: Record<string, string> = {
   sell_limit: "Sell Limit", sell_stop: "Sell Stop",
 };
 
+function adjP(setter: (v: string) => void, val: string, delta: number) {
+  setter(((parseFloat(val) || 0) + delta).toFixed(2));
+}
+
+interface ModifyPanelProps {
+  po: PendingOrder;
+  tick: Tick | null;
+  targetPrice: string;
+  tpEnabled: boolean;
+  slEnabled: boolean;
+  tpPrice: string;
+  slPrice: string;
+  modifyLoading: boolean;
+  modifyMsg: { text: string; ok: boolean } | null;
+  setTargetPrice: (v: string) => void;
+  setTpEnabled: (v: boolean) => void;
+  setSlEnabled: (v: boolean) => void;
+  setTpPrice: (v: string) => void;
+  setSlPrice: (v: string) => void;
+  onCancel: () => void;
+  onSave: (id: number) => void;
+}
+
+// Defined OUTSIDE PendingOrderTable so React never remounts it on re-render
+function ModifyPanel({
+  po, tick, targetPrice, tpEnabled, slEnabled, tpPrice, slPrice,
+  modifyLoading, modifyMsg, setTargetPrice, setTpEnabled, setSlEnabled,
+  setTpPrice, setSlPrice, onCancel, onSave,
+}: ModifyPanelProps) {
+  function detectedType() {
+    if (!tick || !targetPrice) return TYPE_LABELS[po.order_type];
+    const p = parseFloat(targetPrice);
+    if (po.direction === "buy") return p > tick.ask ? "Buy Stop" : "Buy Limit";
+    return p > tick.bid ? "Sell Limit" : "Sell Stop";
+  }
+
+  return (
+    <div className="p-4 bg-[#080810] space-y-3">
+      {tick && (
+        <p className="text-xs text-gray-600">Bid {tick.bid.toFixed(2)} / Ask {tick.ask.toFixed(2)}</p>
+      )}
+      <div>
+        <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Target Price</label>
+        <div className="flex items-center gap-2">
+          <button onClick={() => adjP(setTargetPrice, targetPrice, -1)} className="w-10 h-10 rounded-xl bg-[#1f2937] text-white font-bold text-lg flex items-center justify-center">−</button>
+          <input
+            type="number" step="0.01" value={targetPrice}
+            onChange={(e) => setTargetPrice(e.target.value)}
+            className="flex-1 bg-[#0a0a0f] border border-[#1f2937] rounded-xl px-3 py-2.5 text-sm font-mono text-white text-center focus:outline-none focus:border-gold-400/50"
+          />
+          <button onClick={() => adjP(setTargetPrice, targetPrice, 1)} className="w-10 h-10 rounded-xl bg-[#1f2937] text-white font-bold text-lg flex items-center justify-center">+</button>
+        </div>
+        {tick && targetPrice && (
+          <p className="text-xs text-gray-500 mt-1 text-center">Will become: <span className="text-gold-400">{detectedType()}</span></p>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-[#0f1117] rounded-lg p-3 border border-[#1f2937]">
+          <button onClick={() => setTpEnabled(!tpEnabled)} className={`flex items-center gap-2 text-xs font-semibold mb-2 ${tpEnabled ? "text-emerald-400" : "text-gray-500"}`}>
+            <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${tpEnabled ? "bg-emerald-500 border-emerald-500 text-black" : "border-gray-600"}`}>{tpEnabled ? "✓" : ""}</span>
+            Take Profit
+          </button>
+          {tpEnabled && (
+            <div className="flex items-center gap-1">
+              <button onClick={() => adjP(setTpPrice, tpPrice, -1)} className="w-8 h-8 rounded-lg bg-[#1f2937] text-white font-bold flex items-center justify-center">−</button>
+              <input type="number" step="0.01" value={tpPrice} onChange={(e) => setTpPrice(e.target.value)} className="flex-1 min-w-0 bg-[#1f2937] border border-[#374151] rounded-lg px-1 py-1.5 text-xs font-mono text-white text-center focus:outline-none" />
+              <button onClick={() => adjP(setTpPrice, tpPrice, 1)} className="w-8 h-8 rounded-lg bg-[#1f2937] text-white font-bold flex items-center justify-center">+</button>
+            </div>
+          )}
+        </div>
+        <div className="bg-[#0f1117] rounded-lg p-3 border border-[#1f2937]">
+          <button onClick={() => setSlEnabled(!slEnabled)} className={`flex items-center gap-2 text-xs font-semibold mb-2 ${slEnabled ? "text-red-400" : "text-gray-500"}`}>
+            <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${slEnabled ? "bg-red-500 border-red-500 text-white" : "border-gray-600"}`}>{slEnabled ? "✓" : ""}</span>
+            Stop Loss
+          </button>
+          {slEnabled && (
+            <div className="flex items-center gap-1">
+              <button onClick={() => adjP(setSlPrice, slPrice, -1)} className="w-8 h-8 rounded-lg bg-[#1f2937] text-white font-bold flex items-center justify-center">−</button>
+              <input type="number" step="0.01" value={slPrice} onChange={(e) => setSlPrice(e.target.value)} className="flex-1 min-w-0 bg-[#1f2937] border border-[#374151] rounded-lg px-1 py-1.5 text-xs font-mono text-white text-center focus:outline-none" />
+              <button onClick={() => adjP(setSlPrice, slPrice, 1)} className="w-8 h-8 rounded-lg bg-[#1f2937] text-white font-bold flex items-center justify-center">+</button>
+            </div>
+          )}
+        </div>
+      </div>
+      {modifyMsg && (
+        <div className={`text-xs px-3 py-2 rounded-lg ${modifyMsg.ok ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
+          {modifyMsg.text}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <button onClick={onCancel} className="flex-1 text-xs py-2.5 rounded-xl bg-[#1f2937] text-gray-400">Cancel</button>
+        <button onClick={() => onSave(po.id)} disabled={modifyLoading} className="flex-1 text-xs py-2.5 rounded-xl bg-amber-400 text-black font-semibold disabled:opacity-50">
+          {modifyLoading ? "Saving..." : "Save Changes"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 interface Props {
   orders: PendingOrder[];
   tick: Tick | null;
@@ -43,10 +142,6 @@ export default function PendingOrderTable({ orders, tick, onCancel, cancellingId
     else { setSlEnabled(false); setSlPrice(tick ? (tick.bid - 10).toFixed(2) : ""); }
   }
 
-  function adjust(setter: React.Dispatch<React.SetStateAction<string>>, val: string, delta: number) {
-    setter(((parseFloat(val) || 0) + delta).toFixed(2));
-  }
-
   async function submitModify(id: number) {
     setModifyLoading(true); setModifyMsg(null);
     try {
@@ -63,85 +158,13 @@ export default function PendingOrderTable({ orders, tick, onCancel, cancellingId
     } finally { setModifyLoading(false); }
   }
 
-  // Detected type hint based on modified target price vs current market
-  function detectedType(po: PendingOrder) {
-    if (!tick || !targetPrice) return TYPE_LABELS[po.order_type];
-    const p = parseFloat(targetPrice);
-    if (po.direction === "buy") return p > tick.ask ? "Buy Stop" : "Buy Limit";
-    return p > tick.bid ? "Sell Limit" : "Sell Stop";
-  }
+  function cancelModify() { setModifyId(null); setModifyMsg(null); }
 
-  function ModifyPanel({ po }: { po: PendingOrder }) {
-    return (
-      <div className="p-4 bg-[#080810] space-y-3">
-        {tick && (
-          <p className="text-xs text-gray-600">Bid {tick.bid.toFixed(2)} / Ask {tick.ask.toFixed(2)}</p>
-        )}
-
-        {/* Target price */}
-        <div>
-          <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Target Price</label>
-          <div className="flex items-center gap-2">
-            <button onClick={() => adjust(setTargetPrice, targetPrice, -1)} className="w-10 h-10 rounded-xl bg-[#1f2937] text-white font-bold text-lg flex items-center justify-center">−</button>
-            <input
-              type="number" step="0.01" value={targetPrice}
-              onChange={(e) => setTargetPrice(e.target.value)}
-              className="flex-1 bg-[#0a0a0f] border border-[#1f2937] rounded-xl px-3 py-2.5 text-sm font-mono text-white text-center focus:outline-none focus:border-gold-400/50"
-            />
-            <button onClick={() => adjust(setTargetPrice, targetPrice, 1)} className="w-10 h-10 rounded-xl bg-[#1f2937] text-white font-bold text-lg flex items-center justify-center">+</button>
-          </div>
-          {tick && targetPrice && (
-            <p className="text-xs text-gray-500 mt-1 text-center">Will become: <span className="text-gold-400">{detectedType(po)}</span></p>
-          )}
-        </div>
-
-        {/* TP + SL */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-[#0f1117] rounded-lg p-3 border border-[#1f2937]">
-            <button onClick={() => setTpEnabled((v) => !v)} className={`flex items-center gap-2 text-xs font-semibold mb-2 ${tpEnabled ? "text-emerald-400" : "text-gray-500"}`}>
-              <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${tpEnabled ? "bg-emerald-500 border-emerald-500 text-black" : "border-gray-600"}`}>{tpEnabled ? "✓" : ""}</span>
-              Take Profit
-            </button>
-            {tpEnabled && (
-              <div className="flex items-center gap-1">
-                <button onClick={() => adjust(setTpPrice, tpPrice, -1)} className="w-8 h-8 rounded-lg bg-[#1f2937] text-white font-bold flex items-center justify-center">−</button>
-                <input type="number" step="0.01" value={tpPrice} onChange={(e) => setTpPrice(e.target.value)} className="flex-1 min-w-0 bg-[#1f2937] border border-[#374151] rounded-lg px-1 py-1.5 text-xs font-mono text-white text-center focus:outline-none" />
-                <button onClick={() => adjust(setTpPrice, tpPrice, 1)} className="w-8 h-8 rounded-lg bg-[#1f2937] text-white font-bold flex items-center justify-center">+</button>
-              </div>
-            )}
-          </div>
-          <div className="bg-[#0f1117] rounded-lg p-3 border border-[#1f2937]">
-            <button onClick={() => setSlEnabled((v) => !v)} className={`flex items-center gap-2 text-xs font-semibold mb-2 ${slEnabled ? "text-red-400" : "text-gray-500"}`}>
-              <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${slEnabled ? "bg-red-500 border-red-500 text-white" : "border-gray-600"}`}>{slEnabled ? "✓" : ""}</span>
-              Stop Loss
-            </button>
-            {slEnabled && (
-              <div className="flex items-center gap-1">
-                <button onClick={() => adjust(setSlPrice, slPrice, -1)} className="w-8 h-8 rounded-lg bg-[#1f2937] text-white font-bold flex items-center justify-center">−</button>
-                <input type="number" step="0.01" value={slPrice} onChange={(e) => setSlPrice(e.target.value)} className="flex-1 min-w-0 bg-[#1f2937] border border-[#374151] rounded-lg px-1 py-1.5 text-xs font-mono text-white text-center focus:outline-none" />
-                <button onClick={() => adjust(setSlPrice, slPrice, 1)} className="w-8 h-8 rounded-lg bg-[#1f2937] text-white font-bold flex items-center justify-center">+</button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {modifyMsg && (
-          <div className={`text-xs px-3 py-2 rounded-lg ${modifyMsg.ok ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
-            {modifyMsg.text}
-          </div>
-        )}
-
-        <div className="flex gap-2">
-          <button onClick={() => { setModifyId(null); setModifyMsg(null); }} className="flex-1 text-xs py-2.5 rounded-xl bg-[#1f2937] text-gray-400">
-            Cancel
-          </button>
-          <button onClick={() => submitModify(po.id)} disabled={modifyLoading} className="flex-1 text-xs py-2.5 rounded-xl bg-amber-400 text-black font-semibold disabled:opacity-50">
-            {modifyLoading ? "Saving..." : "Save Changes"}
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const modifyPanelProps = {
+    tick, targetPrice, tpEnabled, slEnabled, tpPrice, slPrice,
+    modifyLoading, modifyMsg, setTargetPrice, setTpEnabled, setSlEnabled,
+    setTpPrice, setSlPrice, onCancel: cancelModify, onSave: submitModify,
+  };
 
   return (
     <>
@@ -196,7 +219,7 @@ export default function PendingOrderTable({ orders, tick, onCancel, cancellingId
               </div>
               {isModifying && (
                 <div className="border-t border-[#1f2937]">
-                  <ModifyPanel po={po} />
+                  <ModifyPanel po={po} {...modifyPanelProps} />
                 </div>
               )}
             </div>
@@ -253,7 +276,7 @@ export default function PendingOrderTable({ orders, tick, onCancel, cancellingId
                   {isModifying && (
                     <tr className="border-b border-[#1f2937]">
                       <td colSpan={7}>
-                        <ModifyPanel po={po} />
+                        <ModifyPanel po={po} {...modifyPanelProps} />
                       </td>
                     </tr>
                   )}

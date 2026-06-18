@@ -3,6 +3,81 @@ import { Position, Tick } from "../types";
 import { format } from "date-fns";
 import api from "../api";
 
+interface ModifyFormProps {
+  posId: number;
+  tick?: Tick | null;
+  tpEnabled: boolean;
+  slEnabled: boolean;
+  tpPrice: string;
+  slPrice: string;
+  modifyLoading: boolean;
+  modifyMsg: { text: string; ok: boolean } | null;
+  setTpEnabled: (v: boolean) => void;
+  setSlEnabled: (v: boolean) => void;
+  setTpPrice: (v: string) => void;
+  setSlPrice: (v: string) => void;
+  onCancel: () => void;
+  onSave: (posId: number) => void;
+}
+
+function adjust(setter: (v: string) => void, val: string, delta: number) {
+  setter(((parseFloat(val) || 0) + delta).toFixed(2));
+}
+
+// Defined OUTSIDE PositionTable so React never remounts it due to reference change
+function ModifyForm({
+  posId, tick, tpEnabled, slEnabled, tpPrice, slPrice,
+  modifyLoading, modifyMsg, setTpEnabled, setSlEnabled,
+  setTpPrice, setSlPrice, onCancel, onSave,
+}: ModifyFormProps) {
+  return (
+    <div className="space-y-3 p-4 bg-[#080810]">
+      {tick && (
+        <p className="text-xs text-gray-600">Bid {tick.bid.toFixed(2)} / Ask {tick.ask.toFixed(2)}</p>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-[#0f1117] rounded-lg p-3 border border-[#1f2937]">
+          <button onClick={() => setTpEnabled(!tpEnabled)} className={`flex items-center gap-2 text-xs font-semibold mb-2 ${tpEnabled ? "text-emerald-400" : "text-gray-500"}`}>
+            <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${tpEnabled ? "bg-emerald-500 border-emerald-500 text-black" : "border-gray-600"}`}>{tpEnabled ? "✓" : ""}</span>
+            Take Profit
+          </button>
+          {tpEnabled && (
+            <div className="flex items-center gap-1">
+              <button onClick={() => adjust(setTpPrice, tpPrice, -1)} className="w-9 h-9 rounded-lg bg-[#1f2937] text-white font-bold text-base flex items-center justify-center">−</button>
+              <input type="number" step="0.01" value={tpPrice} onChange={(e) => setTpPrice(e.target.value)} className="flex-1 min-w-0 bg-[#1f2937] border border-[#374151] rounded-lg px-1 py-2 text-xs font-mono text-white text-center focus:outline-none" />
+              <button onClick={() => adjust(setTpPrice, tpPrice, 1)} className="w-9 h-9 rounded-lg bg-[#1f2937] text-white font-bold text-base flex items-center justify-center">+</button>
+            </div>
+          )}
+        </div>
+        <div className="bg-[#0f1117] rounded-lg p-3 border border-[#1f2937]">
+          <button onClick={() => setSlEnabled(!slEnabled)} className={`flex items-center gap-2 text-xs font-semibold mb-2 ${slEnabled ? "text-red-400" : "text-gray-500"}`}>
+            <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${slEnabled ? "bg-red-500 border-red-500 text-white" : "border-gray-600"}`}>{slEnabled ? "✓" : ""}</span>
+            Stop Loss
+          </button>
+          {slEnabled && (
+            <div className="flex items-center gap-1">
+              <button onClick={() => adjust(setSlPrice, slPrice, -1)} className="w-9 h-9 rounded-lg bg-[#1f2937] text-white font-bold text-base flex items-center justify-center">−</button>
+              <input type="number" step="0.01" value={slPrice} onChange={(e) => setSlPrice(e.target.value)} className="flex-1 min-w-0 bg-[#1f2937] border border-[#374151] rounded-lg px-1 py-2 text-xs font-mono text-white text-center focus:outline-none" />
+              <button onClick={() => adjust(setSlPrice, slPrice, 1)} className="w-9 h-9 rounded-lg bg-[#1f2937] text-white font-bold text-base flex items-center justify-center">+</button>
+            </div>
+          )}
+        </div>
+      </div>
+      {modifyMsg && (
+        <div className={`text-xs px-3 py-2 rounded-lg ${modifyMsg.ok ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
+          {modifyMsg.text}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <button onClick={onCancel} className="flex-1 text-xs py-2.5 rounded-xl bg-[#1f2937] text-gray-400">Cancel</button>
+        <button onClick={() => onSave(posId)} disabled={modifyLoading} className="flex-1 text-xs py-2.5 rounded-xl bg-amber-400 text-black font-semibold disabled:opacity-50">
+          {modifyLoading ? "Saving..." : "Save Changes"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 interface Props {
   positions: Position[];
   onSell?: (id: number) => void;
@@ -35,10 +110,6 @@ export default function PositionTable({ positions, onSell, onModify, loading, ti
     } catch {}
   }
 
-  function adjust(setter: React.Dispatch<React.SetStateAction<string>>, val: string, delta: number) {
-    setter(((parseFloat(val) || 0) + delta).toFixed(2));
-  }
-
   async function submitModify(posId: number) {
     setModifyLoading(true); setModifyMsg(null);
     try {
@@ -54,62 +125,10 @@ export default function PositionTable({ positions, onSell, onModify, loading, ti
     } finally { setModifyLoading(false); }
   }
 
+  function cancelModify() { setModifyId(null); setModifyMsg(null); }
+
   if (positions.length === 0) {
     return <div className="text-center py-12 text-gray-600 text-sm">No positions to show</div>;
-  }
-
-  // Shared modify form used in both mobile and desktop views
-  function ModifyForm({ posId, ticket }: { posId: number; ticket: number }) {
-    return (
-      <div className="space-y-3 p-4 bg-[#080810]">
-        {tick && (
-          <p className="text-xs text-gray-600">Bid {tick.bid.toFixed(2)} / Ask {tick.ask.toFixed(2)}</p>
-        )}
-        <div className="grid grid-cols-2 gap-3">
-          {/* Take Profit */}
-          <div className="bg-[#0f1117] rounded-lg p-3 border border-[#1f2937]">
-            <button onClick={() => setTpEnabled((v) => !v)} className={`flex items-center gap-2 text-xs font-semibold mb-2 ${tpEnabled ? "text-emerald-400" : "text-gray-500"}`}>
-              <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${tpEnabled ? "bg-emerald-500 border-emerald-500 text-black" : "border-gray-600"}`}>{tpEnabled ? "✓" : ""}</span>
-              Take Profit
-            </button>
-            {tpEnabled && (
-              <div className="flex items-center gap-1">
-                <button onClick={() => adjust(setTpPrice, tpPrice, -1)} className="w-9 h-9 rounded-lg bg-[#1f2937] text-white font-bold text-base flex items-center justify-center">−</button>
-                <input type="number" step="0.01" value={tpPrice} onChange={(e) => setTpPrice(e.target.value)} className="flex-1 min-w-0 bg-[#1f2937] border border-[#374151] rounded-lg px-1 py-2 text-xs font-mono text-white text-center focus:outline-none" />
-                <button onClick={() => adjust(setTpPrice, tpPrice, 1)} className="w-9 h-9 rounded-lg bg-[#1f2937] text-white font-bold text-base flex items-center justify-center">+</button>
-              </div>
-            )}
-          </div>
-          {/* Stop Loss */}
-          <div className="bg-[#0f1117] rounded-lg p-3 border border-[#1f2937]">
-            <button onClick={() => setSlEnabled((v) => !v)} className={`flex items-center gap-2 text-xs font-semibold mb-2 ${slEnabled ? "text-red-400" : "text-gray-500"}`}>
-              <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${slEnabled ? "bg-red-500 border-red-500 text-white" : "border-gray-600"}`}>{slEnabled ? "✓" : ""}</span>
-              Stop Loss
-            </button>
-            {slEnabled && (
-              <div className="flex items-center gap-1">
-                <button onClick={() => adjust(setSlPrice, slPrice, -1)} className="w-9 h-9 rounded-lg bg-[#1f2937] text-white font-bold text-base flex items-center justify-center">−</button>
-                <input type="number" step="0.01" value={slPrice} onChange={(e) => setSlPrice(e.target.value)} className="flex-1 min-w-0 bg-[#1f2937] border border-[#374151] rounded-lg px-1 py-2 text-xs font-mono text-white text-center focus:outline-none" />
-                <button onClick={() => adjust(setSlPrice, slPrice, 1)} className="w-9 h-9 rounded-lg bg-[#1f2937] text-white font-bold text-base flex items-center justify-center">+</button>
-              </div>
-            )}
-          </div>
-        </div>
-        {modifyMsg && (
-          <div className={`text-xs px-3 py-2 rounded-lg ${modifyMsg.ok ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
-            {modifyMsg.text}
-          </div>
-        )}
-        <div className="flex gap-2">
-          <button onClick={() => { setModifyId(null); setModifyMsg(null); }} className="flex-1 text-xs py-2.5 rounded-xl bg-[#1f2937] text-gray-400">
-            Cancel
-          </button>
-          <button onClick={() => submitModify(posId)} disabled={modifyLoading} className="flex-1 text-xs py-2.5 rounded-xl bg-amber-400 text-black font-semibold disabled:opacity-50">
-            {modifyLoading ? "Saving..." : "Save Changes"}
-          </button>
-        </div>
-      </div>
-    );
   }
 
   const colCount = onSell ? 7 : 8;
@@ -125,7 +144,6 @@ export default function PositionTable({ positions, onSell, onModify, loading, ti
           return (
             <div key={p.id} className="bg-[#0f1117] rounded-xl border border-[#1f2937] overflow-hidden">
               <div className="p-4 space-y-3">
-                {/* Header row: badge + ticket + date */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className={`text-xs font-bold px-2 py-0.5 rounded ${p.direction === "sell" ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400"}`}>
@@ -135,8 +153,6 @@ export default function PositionTable({ positions, onSell, onModify, loading, ti
                   </div>
                   <span className="text-xs text-gray-500">{format(new Date(p.entry_time), "MMM d, HH:mm")}</span>
                 </div>
-
-                {/* Data row */}
                 <div className="flex items-end justify-between">
                   <div>
                     <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">Entry</p>
@@ -159,8 +175,6 @@ export default function PositionTable({ positions, onSell, onModify, loading, ti
                     </p>
                   </div>
                 </div>
-
-                {/* Action buttons */}
                 {onSell && (
                   <div className="flex gap-2">
                     <button
@@ -179,11 +193,17 @@ export default function PositionTable({ positions, onSell, onModify, loading, ti
                   </div>
                 )}
               </div>
-
-              {/* Modify panel */}
               {isModifying && (
                 <div className="border-t border-[#1f2937]">
-                  <ModifyForm posId={p.id} ticket={p.mt5_ticket} />
+                  <ModifyForm
+                    posId={p.id} tick={tick}
+                    tpEnabled={tpEnabled} slEnabled={slEnabled}
+                    tpPrice={tpPrice} slPrice={slPrice}
+                    modifyLoading={modifyLoading} modifyMsg={modifyMsg}
+                    setTpEnabled={setTpEnabled} setSlEnabled={setSlEnabled}
+                    setTpPrice={setTpPrice} setSlPrice={setSlPrice}
+                    onCancel={cancelModify} onSave={submitModify}
+                  />
                 </div>
               )}
             </div>
@@ -245,7 +265,15 @@ export default function PositionTable({ positions, onSell, onModify, loading, ti
                   {isModifying && (
                     <tr className="border-b border-[#1f2937]">
                       <td colSpan={colCount}>
-                        <ModifyForm posId={p.id} ticket={p.mt5_ticket} />
+                        <ModifyForm
+                          posId={p.id} tick={tick}
+                          tpEnabled={tpEnabled} slEnabled={slEnabled}
+                          tpPrice={tpPrice} slPrice={slPrice}
+                          modifyLoading={modifyLoading} modifyMsg={modifyMsg}
+                          setTpEnabled={setTpEnabled} setSlEnabled={setSlEnabled}
+                          setTpPrice={setTpPrice} setSlPrice={setSlPrice}
+                          onCancel={cancelModify} onSave={submitModify}
+                        />
                       </td>
                     </tr>
                   )}

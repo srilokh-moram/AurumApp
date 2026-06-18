@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+import MetaTrader5 as mt5
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
@@ -200,7 +201,7 @@ async def force_close(position_id: int, admin=Depends(get_admin_user), db: Sessi
     pos_user = db.query(User).filter(User.id == pos.user_id).first()
     result = await close_position(pos.mt5_ticket, float(pos.volume), close_price, pos.user_id, is_short, pos_user.name if pos_user else "")
 
-    if not result or result.retcode != 10009:
+    if not result or result.retcode != mt5.TRADE_RETCODE_DONE:
         raise HTTPException(status_code=400, detail="Close failed")
 
     from services.mt5_service import get_deal_profit

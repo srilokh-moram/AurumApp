@@ -6,6 +6,9 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost/aurum")
 
 SECRET_KEY = os.getenv("SECRET_KEY", "changeme-insecure-default")
+if SECRET_KEY == "changeme-insecure-default":
+    import logging
+    logging.warning("⚠️  SECRET_KEY is using the insecure default. Set SECRET_KEY in .env before production!")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 10080))
 

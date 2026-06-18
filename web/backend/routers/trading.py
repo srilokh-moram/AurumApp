@@ -136,7 +136,7 @@ async def short(
     ))
     db.add(Transaction(
         user_id=user.id,
-        type=TransactionType.buy,
+        type=TransactionType.sell,
         amount=0,
         price=bid,
         volume=data.lot_size,

@@ -12,7 +12,7 @@ api.interceptors.response.use(
   (r) => r,
   (err) => {
     const url: string = err.config?.url ?? "";
-    if (err.response?.status === 401 && !url.includes("admin-login")) {
+    if (err.response?.status === 401 && !url.includes("/auth/") && !url.includes("admin-login")) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       window.location.href = "/login";
