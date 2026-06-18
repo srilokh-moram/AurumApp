@@ -20,12 +20,24 @@ const BAR_SECONDS: Record<TF, number> = {
 const TF_COUNT: Record<TF, number> = {
   M1: 200,
   M5: 200,
-  M15: 150,
-  M30: 120,
-  H1: 100,
-  H4: 100,
-  D1: 100,
-  W1: 60,
+  M15: 200,
+  M30: 200,
+  H1: 200,
+  H4: 200,
+  D1: 200,
+  W1: 100,
+};
+
+// How many bars to show in the visible window by default
+const VISIBLE_BARS: Record<TF, number> = {
+  M1: 80,
+  M5: 60,
+  M15: 48,
+  M30: 36,
+  H1: 48,
+  H4: 30,
+  D1: 30,
+  W1: 26,
 };
 
 interface Props {
@@ -54,11 +66,15 @@ export default function LiveChart({ tick }: Props) {
         horzLines: { color: "#1f2937" },
       },
       crosshair: { mode: 1 },
-      rightPriceScale: { borderColor: "#374151" },
+      rightPriceScale: {
+        borderColor: "#374151",
+        autoScale: true,
+      },
       timeScale: {
         borderColor: "#374151",
         timeVisible: true,
         secondsVisible: false,
+        rightOffset: 5,
       },
       width: containerRef.current.clientWidth,
       height: containerRef.current.clientHeight,
@@ -98,31 +114,33 @@ export default function LiveChart({ tick }: Props) {
   useEffect(() => {
     tfRef.current = tf;
     if (!seriesRef.current) return;
-    // Clear immediately so stale data is gone; tick updates will be skipped
-    // until lastCandleRef is repopulated by the fetch below
     lastCandleRef.current = null;
     try { seriesRef.current.setData([]); } catch { /* ignore */ }
 
     api.get(`/market/candles?timeframe=${tf}&count=${TF_COUNT[tf]}`).then((res) => {
-      if (!seriesRef.current || tfRef.current !== tf) return;
-      if (res.data.length > 0) {
-        try {
-          seriesRef.current.setData(res.data as CandlestickData[]);
-          lastCandleRef.current = res.data[res.data.length - 1];
-          chartRef.current?.timeScale().fitContent();
-        } catch { /* ignore */ }
-      }
+      if (!seriesRef.current || !chartRef.current || tfRef.current !== tf) return;
+      const data = res.data as CandlestickData[];
+      if (data.length === 0) return;
+      try {
+        seriesRef.current.setData(data);
+        lastCandleRef.current = data[data.length - 1];
+        // Zoom to recent bars — avoids weekend/session gaps dominating the view
+        const visible = VISIBLE_BARS[tf];
+        chartRef.current.timeScale().setVisibleLogicalRange({
+          from: data.length - visible,
+          to: data.length + 5,
+        });
+      } catch { /* ignore */ }
     });
   }, [tf]);
 
   // Update last candle with live tick
   useEffect(() => {
-    // Skip while loading new timeframe — prevents update() on empty series which crashes lightweight-charts
+    // Skip while loading new timeframe — prevents update() on empty series
     if (!tick || !seriesRef.current || !lastCandleRef.current) return;
     const price = tick.ask;
     const barDuration = BAR_SECONDS[tfRef.current];
     const time = (Math.floor(tick.time / barDuration) * barDuration) as Time;
-
     const last = lastCandleRef.current;
 
     try {
@@ -142,7 +160,7 @@ export default function LiveChart({ tick }: Props) {
         lastCandleRef.current = candle;
       }
     } catch {
-      // lightweight-charts can throw if data is out of order; ignore and wait for next tick
+      // ignore out-of-order ticks
     }
   }, [tick]);
 
@@ -170,7 +188,7 @@ export default function LiveChart({ tick }: Props) {
         </div>
       </div>
 
-      {/* Chart canvas — fills remaining height */}
+      {/* Chart canvas */}
       <div ref={containerRef} className="flex-1 w-full min-h-0" />
     </div>
   );
