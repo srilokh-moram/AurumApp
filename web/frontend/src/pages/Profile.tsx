@@ -84,7 +84,7 @@ export default function Profile() {
             )}
             <div className="flex items-center gap-1.5 mt-1">
               <Mail size={12} className="text-gray-500" />
-              <p className="text-sm text-gray-400 truncate">{user?.email}</p>
+              <p className="text-sm text-gray-400 truncate">{summary?.email ?? "—"}</p>
             </div>
           </div>
         </div>

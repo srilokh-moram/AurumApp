@@ -66,12 +66,7 @@ export default function Trade() {
       {/* Main trading area */}
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4 items-start">
         {/* Chart — responsive height */}
-        <div className="card p-0 overflow-hidden relative h-[300px] sm:h-[400px] xl:h-[520px]">
-          {tick && (
-            <div className="absolute top-3 left-4 z-10">
-              <span className="text-white font-mono font-bold text-base">{tick.ask.toFixed(2)}</span>
-            </div>
-          )}
+        <div className="card p-0 overflow-hidden h-[320px] sm:h-[420px] xl:h-[540px]">
           <LiveChart tick={tick} />
         </div>
 

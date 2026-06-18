@@ -48,10 +48,24 @@ async def get_tick() -> Optional[dict]:
 
 # ── Historical candles ────────────────────────────────────────────────────────
 
-def _get_candles(count: int = 300) -> list:
+_TF_MAP = {
+    "M1":  "TIMEFRAME_M1",
+    "M5":  "TIMEFRAME_M5",
+    "M15": "TIMEFRAME_M15",
+    "M30": "TIMEFRAME_M30",
+    "H1":  "TIMEFRAME_H1",
+    "H4":  "TIMEFRAME_H4",
+    "D1":  "TIMEFRAME_D1",
+    "W1":  "TIMEFRAME_W1",
+}
+
+
+def _get_candles(count: int = 200, timeframe: str = "M1") -> list:
     if not _connect():
         return []
-    rates = mt5.copy_rates_from_pos(SYMBOL, mt5.TIMEFRAME_M1, 0, count)
+    tf_attr = _TF_MAP.get(timeframe.upper(), "TIMEFRAME_M1")
+    tf = getattr(mt5, tf_attr, mt5.TIMEFRAME_M1)
+    rates = mt5.copy_rates_from_pos(SYMBOL, tf, 0, count)
     if rates is None:
         return []
     return [
@@ -61,9 +75,9 @@ def _get_candles(count: int = 300) -> list:
     ]
 
 
-async def get_candles(count: int = 300) -> list:
+async def get_candles(count: int = 200, timeframe: str = "M1") -> list:
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(_executor, _get_candles, count)
+    return await loop.run_in_executor(_executor, _get_candles, count, timeframe)
 
 
 # ── Order execution ───────────────────────────────────────────────────────────

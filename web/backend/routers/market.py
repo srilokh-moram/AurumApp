@@ -7,8 +7,8 @@ router = APIRouter(tags=["market"])
 
 
 @router.get("/market/candles")
-async def candles(count: int = 300):
-    data = await get_candles(count)
+async def candles(count: int = 200, timeframe: str = "M1"):
+    data = await get_candles(count, timeframe)
     return data
 
 
