@@ -48,7 +48,7 @@ export default function Register() {
     <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-10">
-          <img src="/logo.svg" alt="CB Markets" className="h-24 w-24 mb-3" />
+          <img src="/logo.svg" alt="CB Markets" className="h-20 w-auto mb-3" />
           <p className="text-gray-500 text-sm">Gold Trading Platform</p>
         </div>
 

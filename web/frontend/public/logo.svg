@@ -1,80 +1,59 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 210 115">
   <defs>
-    <radialGradient id="bgGrad" cx="40%" cy="35%" r="65%">
-      <stop offset="0%" stop-color="#0d1e35"/>
-      <stop offset="70%" stop-color="#080f1c"/>
-      <stop offset="100%" stop-color="#040a12"/>
-    </radialGradient>
-    <clipPath id="circleClip">
-      <circle cx="100" cy="100" r="89"/>
-    </clipPath>
-    <filter id="candleGlow" x="-50%" y="-50%" width="200%" height="200%">
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#42a5f5"/>
+      <stop offset="100%" stop-color="#1565c0"/>
+    </linearGradient>
+    <linearGradient id="whiteGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#c8d6e5"/>
+    </linearGradient>
+    <filter id="textGlow" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="greenGlow" x="-40%" y="-40%" width="180%" height="180%">
       <feGaussianBlur stdDeviation="1.5" result="blur"/>
       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
 
-  <!-- Outer dark border ring -->
-  <circle cx="100" cy="100" r="99" fill="#020609"/>
-
-  <!-- Main background -->
-  <circle cx="100" cy="100" r="89" fill="url(#bgGrad)"/>
-
-  <!-- Subtle world map dot grid -->
-  <g clip-path="url(#circleClip)" opacity="0.18" fill="#4a9abb">
-    <circle cx="28" cy="68" r="1.1"/><circle cx="36" cy="68" r="1.1"/><circle cx="44" cy="68" r="1.1"/>
-    <circle cx="28" cy="76" r="1.1"/><circle cx="36" cy="76" r="1.1"/><circle cx="44" cy="76" r="1.1"/>
-    <circle cx="28" cy="84" r="1.1"/><circle cx="36" cy="84" r="1.1"/>
-    <circle cx="152" cy="62" r="1.1"/><circle cx="160" cy="62" r="1.1"/><circle cx="168" cy="62" r="1.1"/>
-    <circle cx="152" cy="70" r="1.1"/><circle cx="160" cy="70" r="1.1"/><circle cx="168" cy="70" r="1.1"/>
-    <circle cx="152" cy="78" r="1.1"/><circle cx="160" cy="78" r="1.1"/>
-    <circle cx="38" cy="118" r="1.1"/><circle cx="46" cy="118" r="1.1"/><circle cx="54" cy="118" r="1.1"/>
-    <circle cx="38" cy="126" r="1.1"/><circle cx="46" cy="126" r="1.1"/><circle cx="54" cy="126" r="1.1"/>
-    <circle cx="142" cy="115" r="1.1"/><circle cx="150" cy="115" r="1.1"/><circle cx="158" cy="115" r="1.1"/>
-    <circle cx="142" cy="123" r="1.1"/><circle cx="150" cy="123" r="1.1"/>
-    <circle cx="24" cy="96" r="1.1"/><circle cx="32" cy="96" r="1.1"/>
-    <circle cx="170" cy="100" r="1.1"/><circle cx="178" cy="100" r="1.1"/>
-  </g>
-
-  <!-- Neon cyan ring — layered for glow effect -->
-  <circle cx="100" cy="100" r="91" fill="none" stroke="#00c8ff" stroke-width="12" opacity="0.04"/>
-  <circle cx="100" cy="100" r="91" fill="none" stroke="#00c8ff" stroke-width="7"  opacity="0.08"/>
-  <circle cx="100" cy="100" r="91" fill="none" stroke="#00ccff" stroke-width="3"  opacity="0.25"/>
-  <circle cx="100" cy="100" r="91" fill="none" stroke="#00d8ff" stroke-width="1.6" opacity="0.9"/>
-
-  <!-- "C" — white, bold -->
-  <text x="15" y="122"
+  <!-- "C" — white gradient, bold -->
+  <text x="2" y="90"
     font-family="'Arial Black', 'Haettenschweiler', Impact, sans-serif"
     font-weight="900"
-    font-size="96"
-    fill="white">C</text>
+    font-size="98"
+    fill="url(#whiteGrad)"
+    filter="url(#textGlow)">C</text>
 
-  <!-- "B" — royal blue -->
-  <text x="100" y="122"
+  <!-- "B" — blue gradient, bold -->
+  <text x="106" y="90"
     font-family="'Arial Black', 'Haettenschweiler', Impact, sans-serif"
     font-weight="900"
-    font-size="96"
-    fill="#1565C0">B</text>
+    font-size="98"
+    fill="url(#blueGrad)"
+    filter="url(#textGlow)">B</text>
 
-  <!-- Candlestick chart — sits in the gap between C and B -->
+  <!-- Candlestick chart — in the gap between C opening and B -->
+
   <!-- Candle 1: green / bullish -->
-  <line x1="89"  y1="47" x2="89"  y2="90" stroke="#2ecc71" stroke-width="1.4" filter="url(#candleGlow)"/>
-  <rect x="86"  y="57"  width="6" height="23" fill="#2ecc71" rx="1"/>
+  <line x1="90"  y1="16" x2="90"  y2="76" stroke="#2ecc71" stroke-width="1.5" filter="url(#greenGlow)"/>
+  <rect x="86.5" y="26"  width="7" height="35" fill="#2ecc71" rx="1.2"/>
 
-  <!-- Candle 2: red / bearish -->
-  <line x1="99"  y1="43" x2="99"  y2="90" stroke="#e74c3c" stroke-width="1.4" filter="url(#candleGlow)"/>
-  <rect x="96"  y="50"  width="6" height="28" fill="#e74c3c" rx="1"/>
+  <!-- Candle 2: red / bearish (tallest) -->
+  <line x1="101" y1="10" x2="101" y2="78" stroke="#e74c3c" stroke-width="1.5" filter="url(#greenGlow)"/>
+  <rect x="97.5" y="18"  width="7" height="40" fill="#e74c3c" rx="1.2"/>
 
-  <!-- Candle 3: green / bullish (smaller) -->
-  <line x1="109" y1="52" x2="109" y2="87" stroke="#2ecc71" stroke-width="1.4" filter="url(#candleGlow)"/>
-  <rect x="106" y="59"  width="6" height="19" fill="#2ecc71" rx="1"/>
+  <!-- Candle 3: green / bullish (short) -->
+  <line x1="112" y1="20" x2="112" y2="72" stroke="#2ecc71" stroke-width="1.5" filter="url(#greenGlow)"/>
+  <rect x="108.5" y="30" width="7" height="27" fill="#2ecc71" rx="1.2"/>
 
-  <!-- MARKETS text -->
-  <text x="100" y="158"
+  <!-- "MARKETS" label -->
+  <text x="105" y="110"
     font-family="Arial, Helvetica, sans-serif"
     font-weight="700"
-    font-size="12.5"
-    fill="white"
+    font-size="13"
+    fill="#94a3b8"
     text-anchor="middle"
-    letter-spacing="5.5">MARKETS</text>
+    letter-spacing="6">MARKETS</text>
 </svg>
