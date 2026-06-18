@@ -98,49 +98,51 @@ export default function LiveChart({ tick }: Props) {
   useEffect(() => {
     tfRef.current = tf;
     if (!seriesRef.current) return;
-    // Clear immediately so tick updates don't conflict with old-timeframe data
-    seriesRef.current.setData([]);
+    // Clear immediately so stale data is gone; tick updates will be skipped
+    // until lastCandleRef is repopulated by the fetch below
     lastCandleRef.current = null;
+    try { seriesRef.current.setData([]); } catch { /* ignore */ }
 
     api.get(`/market/candles?timeframe=${tf}&count=${TF_COUNT[tf]}`).then((res) => {
       if (!seriesRef.current || tfRef.current !== tf) return;
       if (res.data.length > 0) {
-        seriesRef.current.setData(res.data as CandlestickData[]);
-        lastCandleRef.current = res.data[res.data.length - 1];
-        chartRef.current?.timeScale().fitContent();
+        try {
+          seriesRef.current.setData(res.data as CandlestickData[]);
+          lastCandleRef.current = res.data[res.data.length - 1];
+          chartRef.current?.timeScale().fitContent();
+        } catch { /* ignore */ }
       }
     });
   }, [tf]);
 
   // Update last candle with live tick
   useEffect(() => {
-    if (!tick || !seriesRef.current) return;
+    // Skip while loading new timeframe — prevents update() on empty series which crashes lightweight-charts
+    if (!tick || !seriesRef.current || !lastCandleRef.current) return;
     const price = tick.ask;
     const barDuration = BAR_SECONDS[tfRef.current];
     const time = (Math.floor(tick.time / barDuration) * barDuration) as Time;
 
     const last = lastCandleRef.current;
-    if (!last) {
-      const candle: CandlestickData = { time, open: price, high: price, low: price, close: price };
-      seriesRef.current.update(candle);
-      lastCandleRef.current = candle;
-      return;
-    }
 
-    if (last.time === time) {
-      const updated: CandlestickData = {
-        time,
-        open: last.open,
-        high: Math.max(last.high as number, price),
-        low: Math.min(last.low as number, price),
-        close: price,
-      };
-      seriesRef.current.update(updated);
-      lastCandleRef.current = updated;
-    } else {
-      const candle: CandlestickData = { time, open: price, high: price, low: price, close: price };
-      seriesRef.current.update(candle);
-      lastCandleRef.current = candle;
+    try {
+      if (last.time === time) {
+        const updated: CandlestickData = {
+          time,
+          open: last.open,
+          high: Math.max(last.high as number, price),
+          low: Math.min(last.low as number, price),
+          close: price,
+        };
+        seriesRef.current.update(updated);
+        lastCandleRef.current = updated;
+      } else {
+        const candle: CandlestickData = { time, open: price, high: price, low: price, close: price };
+        seriesRef.current.update(candle);
+        lastCandleRef.current = candle;
+      }
+    } catch {
+      // lightweight-charts can throw if data is out of order; ignore and wait for next tick
     }
   }, [tick]);
 
