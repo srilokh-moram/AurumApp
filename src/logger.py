@@ -1,27 +1,53 @@
 import logging
 from logging.handlers import RotatingFileHandler
 import os
+from datetime import datetime, timedelta
 
-os.makedirs("logs", exist_ok=True)
+LOG_DIR = "logs"
+LOG_FILE = os.path.join(LOG_DIR, "bot.log")
+
+os.makedirs(LOG_DIR, exist_ok=True)
 
 logger = logging.getLogger("bot")
 logger.setLevel(logging.INFO)
+logger.propagate = False  # prevent duplicate logs from root logger
 
-formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
+# Prevent duplicate handlers
+if not logger.handlers:
 
-file_handler = RotatingFileHandler("logs/bot.log", maxBytes=5_000_000, backupCount=5)
-file_handler.setFormatter(formatter)
+    formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)s | %(message)s"
+    )
 
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(formatter)
+    file_handler = RotatingFileHandler(
+        LOG_FILE,
+        maxBytes=2 * 1024 * 1024,   # 2 MB
+        backupCount=3
+    )
+    file_handler.setFormatter(formatter)
 
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+
+
+def cleanup_old_logs(days=2):
+    now = datetime.now()
+    for file in os.listdir(LOG_DIR):
+        path = os.path.join(LOG_DIR, file)
+        if os.path.isfile(path):
+            file_time = datetime.fromtimestamp(os.path.getmtime(path))
+            if now - file_time > timedelta(days=days):
+                try:
+                    os.remove(path)
+                except Exception:
+                    pass
+
+
+cleanup_old_logs()
+
 
 def log(msg):
-    safe_msg = msg.encode("utf-8", errors="ignore").decode("utf-8")
-    logger.info(safe_msg)
+    logger.info(str(msg))
+
 
 def err(msg):
-    safe_msg = msg.encode("utf-8", errors="ignore").decode("utf-8")
-    logger.error(safe_msg)
+    logger.error(str(msg))

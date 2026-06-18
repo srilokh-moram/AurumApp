@@ -8,9 +8,11 @@ def connect():
         err(f"MT5 init failed: {mt5.last_error()}")
         return False
 
-    log("MT5 Connected")
+    if not mt5.symbol_select(SYMBOL, True):
+        err(f"Failed to select symbol {SYMBOL}")
+        return False
 
-    mt5.symbol_select(SYMBOL, True)
+    log("MT5 Connected")
     return True
 
 
@@ -23,13 +25,15 @@ def ensure_connection():
 
 def get_price():
     tick = mt5.symbol_info_tick(SYMBOL)
-    if tick:
-        return tick.ask
-    return None
+    if tick is None:
+        return None
+
+    return {
+        "ask": tick.ask,
+        "bid": tick.bid
+    }
 
 
 def is_market_open():
-    info = mt5.symbol_info(SYMBOL)
-    if info is None:
-        return False
-    return info.visible
+    tick = mt5.symbol_info_tick(SYMBOL)
+    return tick is not None and tick.ask > 0 and tick.bid > 0
