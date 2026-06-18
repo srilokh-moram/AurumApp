@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 182 120">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 165 122">
   <defs>
     <linearGradient id="goldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%"   stop-color="#FFD700"/>
@@ -9,47 +9,47 @@
       <stop offset="100%" stop-color="#c8d6e5"/>
     </linearGradient>
     <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur stdDeviation="1.8" result="blur"/>
+      <feGaussianBlur stdDeviation="1.6" result="blur"/>
       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
 
   <!-- Dark navy background -->
-  <rect width="182" height="120" fill="#0d1b2a" rx="10"/>
+  <rect width="165" height="122" fill="#0d1b2a" rx="10"/>
 
-  <!-- "C" — white, bold. Ends around x=67 -->
-  <text x="2" y="93"
+  <!-- "C" — white. At 96px, C glyph width ≈ 63px → ends at ~x=64 -->
+  <text x="1" y="92"
     font-family="'Arial Black', Impact, 'Haettenschweiler', sans-serif"
     font-weight="900"
     font-size="96"
     fill="url(#whiteGrad)">C</text>
 
-  <!-- "B" — gold/yellow, bold. Starts at x=78 — close gap to C -->
-  <text x="78" y="93"
+  <!-- "B" — gold. Starts at x=65 → almost touching C (1px gap) -->
+  <text x="65" y="92"
     font-family="'Arial Black', Impact, 'Haettenschweiler', sans-serif"
     font-weight="900"
     font-size="96"
     fill="url(#goldGrad)">B</text>
 
-  <!-- Candlesticks — sit in the ~11px gap between C and B, overlapping slightly into both letters -->
+  <!-- Candlesticks — overlap INTO the C opening (left) and INTO B (right) -->
 
-  <!-- Green candle (left) -->
-  <line x1="68"  y1="14" x2="68"  y2="78" stroke="#2ecc71" stroke-width="1.6" filter="url(#glow)"/>
-  <rect x="64.5" y="24"  width="7" height="36" fill="#2ecc71" rx="1.2"/>
+  <!-- Green candle — sits inside C's right-side opening -->
+  <line x1="62"  y1="13" x2="62"  y2="78" stroke="#27ae60" stroke-width="1.8" filter="url(#glow)"/>
+  <rect x="58"   y="24"  width="8" height="34" fill="#2ecc71" rx="1.2"/>
 
-  <!-- Red candle (center — tallest) -->
-  <line x1="79"  y1="10" x2="79"  y2="81" stroke="#e74c3c" stroke-width="1.6" filter="url(#glow)"/>
-  <rect x="75.5" y="18"  width="7" height="43" fill="#e74c3c" rx="1.2"/>
+  <!-- Red candle — tallest, straddles the C/B junction -->
+  <line x1="74"  y1="9"  x2="74"  y2="81" stroke="#c0392b" stroke-width="1.8" filter="url(#glow)"/>
+  <rect x="70"   y="17"  width="8" height="44" fill="#e74c3c" rx="1.2"/>
 
-  <!-- Green candle (right) -->
-  <line x1="90"  y1="17" x2="90"  y2="76" stroke="#2ecc71" stroke-width="1.6" filter="url(#glow)"/>
-  <rect x="86.5" y="27"  width="7" height="31" fill="#2ecc71" rx="1.2"/>
+  <!-- Green candle — overlaps into B's left side -->
+  <line x1="86"  y1="16" x2="86"  y2="77" stroke="#27ae60" stroke-width="1.8" filter="url(#glow)"/>
+  <rect x="82"   y="26"  width="8" height="30" fill="#2ecc71" rx="1.2"/>
 
-  <!-- MARKETS label -->
-  <text x="91" y="114"
+  <!-- MARKETS label — centered -->
+  <text x="82" y="115"
     font-family="Arial, Helvetica, sans-serif"
     font-weight="700"
-    font-size="12.5"
+    font-size="12"
     fill="#94a3b8"
     text-anchor="middle"
     letter-spacing="6">MARKETS</text>
