@@ -8,3 +8,4 @@ from .balance_snapshot import BalanceSnapshot
 from .system_config import SystemConfig
 from .pending_order import PendingOrder
 from .withdrawal_request import WithdrawalRequest, WithdrawalStatus
+from .notification import Notification

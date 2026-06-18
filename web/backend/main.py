@@ -22,7 +22,9 @@ from models.transaction import Transaction, TransactionType
 from models.user import User
 from models.system_config import SystemConfig
 from models.pending_order import PendingOrder
+from models.notification import Notification
 from config import ADMIN_EMAIL, ADMIN_NAME
+from services.email_service import send_margin_call_alert, send_pending_order_filled
 import MetaTrader5 as mt5
 
 
@@ -31,14 +33,17 @@ import MetaTrader5 as mt5
 def _bootstrap():
     Base.metadata.create_all(bind=engine)
 
-    # Add direction column to existing positions tables (safe no-op if already exists)
     from sqlalchemy import text
     with engine.connect() as conn:
-        try:
-            conn.execute(text("ALTER TABLE positions ADD COLUMN direction VARCHAR DEFAULT 'buy'"))
-            conn.commit()
-        except Exception:
-            pass
+        for stmt in [
+            "ALTER TABLE positions ADD COLUMN direction VARCHAR DEFAULT 'buy'",
+            "ALTER TABLE withdrawal_requests ADD COLUMN reject_reason VARCHAR",
+        ]:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                pass
 
     if not ADMIN_EMAIL:
         return
@@ -160,7 +165,8 @@ def _sync_margin_call_loop():
                     for p in open_pos:
                         user_positions.setdefault(p.user_id, []).append(p)
 
-                    user_names = {u.id: u.name for u in db.query(User).filter(User.is_admin == False).all()}
+                    all_users = {u.id: u for u in db.query(User).filter(User.is_admin == False).all()}
+                    user_names = {uid: u.name for uid, u in all_users.items()}
                     for user_id, positions in user_positions.items():
                         acc = db.query(Account).filter(Account.user_id == user_id).first()
                         if not acc:
@@ -169,6 +175,18 @@ def _sync_margin_call_loop():
                         equity = float(acc.balance) + floating
 
                         if equity < threshold:
+                            u_obj = all_users.get(user_id)
+                            if u_obj:
+                                try:
+                                    send_margin_call_alert(u_obj.email, u_obj.name, equity, threshold)
+                                except Exception:
+                                    pass
+                                db.add(Notification(
+                                    user_id=user_id,
+                                    type="margin_call",
+                                    title="Margin Call",
+                                    message=f"Your equity (${equity:,.2f}) fell below ${threshold:,.2f}. All positions were closed automatically.",
+                                ))
                             # Margin call — close all open positions for this user
                             for pos in positions:
                                 if pos.status != PositionStatus.open:
@@ -226,6 +244,22 @@ def _sync_pending_orders_loop():
                             fill_price = outcome["fill_price"]
                             po.status = "filled"
                             po.filled_at = datetime.utcnow()
+
+                            fill_user = db.query(User).filter(User.id == po.user_id).first()
+                            if fill_user:
+                                try:
+                                    send_pending_order_filled(
+                                        fill_user.email, fill_user.name,
+                                        po.direction, fill_price, float(po.lot_size),
+                                    )
+                                except Exception:
+                                    pass
+                                db.add(Notification(
+                                    user_id=po.user_id,
+                                    type="order_filled",
+                                    title="Pending Order Filled",
+                                    message=f"Your {po.direction.upper()} pending order was filled at ${fill_price:,.2f}.",
+                                ))
 
                             if pos_ticket:
                                 existing = db.query(Position).filter(Position.mt5_ticket == pos_ticket).first()

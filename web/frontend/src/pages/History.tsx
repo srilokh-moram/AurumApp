@@ -200,6 +200,11 @@ export default function History() {
                 </div>
                 <p className="font-mono font-bold text-lg text-white">{fmt(w.amount)}</p>
                 {w.note && <p className="text-xs text-gray-500 mt-1">{w.note}</p>}
+                {w.status === "rejected" && w.reject_reason && (
+                  <p className="text-xs text-red-400 mt-1 bg-red-500/10 px-2 py-1 rounded">
+                    Reason: {w.reject_reason}
+                  </p>
+                )}
                 {w.reviewed_at && (
                   <p className="text-[10px] text-gray-600 mt-1">
                     Reviewed {format(new Date(w.reviewed_at), "MMM d, HH:mm")}

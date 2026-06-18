@@ -10,6 +10,7 @@ import Trade from "./pages/Trade";
 import Positions from "./pages/Positions";
 import History from "./pages/History";
 import Admin from "./pages/Admin";
+import Profile from "./pages/Profile";
 import Layout from "./components/Layout";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="trade" element={<Trade />} />
             <Route path="positions" element={<Positions />} />
             <Route path="history" element={<History />} />
+            <Route path="profile" element={<Profile />} />
             <Route
               path="admin"
               element={

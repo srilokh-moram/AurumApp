@@ -20,3 +20,4 @@ class WithdrawalRequest(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     reviewed_at = Column(DateTime, nullable=True)
     reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reject_reason = Column(String, nullable=True)

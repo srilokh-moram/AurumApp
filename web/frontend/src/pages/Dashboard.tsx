@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { TrendingUp, TrendingDown, Wallet, BarChart3, Activity } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, BarChart3, Activity, Clock } from "lucide-react";
 import api from "../api";
-import { AccountSummary, BalancePoint, Transaction } from "../types";
+import { AccountSummary, BalancePoint, Transaction, WithdrawalRequest } from "../types";
 import StatCard from "../components/StatCard";
 import BalanceChart from "../components/BalanceChart";
 import { format } from "date-fns";
@@ -18,6 +18,7 @@ export default function Dashboard() {
   const [history, setHistory] = useState<BalancePoint[]>([]);
   const [txs, setTxs] = useState<Transaction[]>([]);
   const [myTickets, setMyTickets] = useState<number[]>([]);
+  const [pendingWithdrawal, setPendingWithdrawal] = useState(false);
   const [loading, setLoading] = useState(true);
 
   function refreshSummary() {
@@ -36,11 +37,13 @@ export default function Dashboard() {
       api.get("/account/balance-history"),
       api.get("/account/transactions?limit=10"),
       api.get("/trading/positions/open"),
-    ]).then(([s, h, t, p]) => {
+      api.get("/account/withdrawals"),
+    ]).then(([s, h, t, p, w]) => {
       setSummary(s.data);
       setHistory(h.data);
       setTxs(t.data);
       setMyTickets(p.data.map((pos: any) => pos.mt5_ticket));
+      setPendingWithdrawal((w.data as WithdrawalRequest[]).some((r) => r.status === "pending"));
     }).finally(() => setLoading(false));
 
     // Refresh balance and position list every 5s to catch closes, deposits, etc.
@@ -68,6 +71,17 @@ export default function Dashboard() {
         </div>
         <Link to="/trade" className="btn-gold text-sm shrink-0">Trade Now</Link>
       </div>
+
+      {/* Pending withdrawal banner */}
+      {pendingWithdrawal && (
+        <div className="flex items-center gap-3 bg-amber-400/10 border border-amber-400/20 rounded-xl px-4 py-3">
+          <Clock size={16} className="text-amber-400 shrink-0" />
+          <p className="text-sm text-amber-300">
+            You have a withdrawal request under review. We'll notify you once it's processed.{" "}
+            <Link to="/history" className="underline hover:text-amber-200">View details</Link>
+          </p>
+        </div>
+      )}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

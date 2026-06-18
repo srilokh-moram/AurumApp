@@ -122,6 +122,7 @@ export interface WithdrawalRequest {
   status: "pending" | "approved" | "rejected";
   created_at: string;
   reviewed_at?: string;
+  reject_reason?: string;
 }
 
 export interface AdminWithdrawalRequest {
@@ -134,6 +135,16 @@ export interface AdminWithdrawalRequest {
   status: "pending" | "approved" | "rejected";
   created_at: string;
   reviewed_at?: string;
+  reject_reason?: string;
+}
+
+export interface Notification {
+  id: number;
+  type: "deposit" | "withdrawal_approved" | "withdrawal_rejected" | "margin_call" | "order_filled";
+  title: string;
+  message: string;
+  read: boolean;
+  created_at: string;
 }
 
 export interface AdminPositionDetail {

@@ -126,6 +126,12 @@ class WithdrawalRequestCreate(BaseModel):
     amount: float
     note: Optional[str] = None
 
+class WithdrawalRejectRequest(BaseModel):
+    reason: Optional[str] = None
+
+class ProfileUpdateRequest(BaseModel):
+    name: str
+
 
 # ── Admin ─────────────────────────────────────────────────────────────────────
 

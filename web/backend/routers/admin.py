@@ -12,8 +12,12 @@ from models.transaction import Transaction, TransactionType
 from models.position import Position, PositionStatus
 from models.system_config import SystemConfig
 from models.withdrawal_request import WithdrawalRequest, WithdrawalStatus
-from schemas import DepositRequest, ConfigUpdateRequest
+from models.notification import Notification
+from schemas import DepositRequest, ConfigUpdateRequest, WithdrawalRejectRequest
 from services.mt5_service import get_live_profits, close_position, get_tick, get_account_info
+from services.email_service import (
+    send_deposit_received, send_withdrawal_approved, send_withdrawal_rejected,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -70,7 +74,18 @@ def add_deposit(data: DepositRequest, admin=Depends(get_admin_user), db: Session
         amount=data.amount,
         note=data.note or "Admin deposit",
     ))
+    db.add(Notification(
+        user_id=data.user_id,
+        type="deposit",
+        title="Deposit Received",
+        message=f"${data.amount:,.2f} has been credited to your trading account.",
+    ))
     db.commit()
+
+    try:
+        send_deposit_received(user.email, user.name, data.amount, float(account.balance))
+    except Exception:
+        pass
 
     return {
         "message": "Deposit recorded",
@@ -296,6 +311,7 @@ def list_withdrawal_requests(
             "status": wr.status,
             "created_at": wr.created_at.isoformat(),
             "reviewed_at": wr.reviewed_at.isoformat() if wr.reviewed_at else None,
+            "reject_reason": wr.reject_reason,
         }
         for wr, u in rows
     ]
@@ -329,12 +345,32 @@ def approve_withdrawal(wr_id: int, admin=Depends(get_admin_user), db: Session = 
     wr.status = WithdrawalStatus.approved
     wr.reviewed_at = datetime.utcnow()
     wr.reviewed_by = admin.id
+
+    wr_user = db.query(User).filter(User.id == wr.user_id).first()
+    db.add(Notification(
+        user_id=wr.user_id,
+        type="withdrawal_approved",
+        title="Withdrawal Approved",
+        message=f"Your withdrawal of ${float(wr.amount):,.2f} has been approved.",
+    ))
     db.commit()
+
+    if wr_user:
+        try:
+            send_withdrawal_approved(wr_user.email, wr_user.name, float(wr.amount))
+        except Exception:
+            pass
+
     return {"message": "Withdrawal approved", "new_balance": round(float(account.balance), 2)}
 
 
 @router.post("/withdrawals/{wr_id}/reject")
-def reject_withdrawal(wr_id: int, admin=Depends(get_admin_user), db: Session = Depends(get_db)):
+def reject_withdrawal(
+    wr_id: int,
+    data: WithdrawalRejectRequest = WithdrawalRejectRequest(),
+    admin=Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
     wr = db.query(WithdrawalRequest).filter(WithdrawalRequest.id == wr_id).first()
     if not wr:
         raise HTTPException(status_code=404, detail="Withdrawal request not found")
@@ -344,7 +380,26 @@ def reject_withdrawal(wr_id: int, admin=Depends(get_admin_user), db: Session = D
     wr.status = WithdrawalStatus.rejected
     wr.reviewed_at = datetime.utcnow()
     wr.reviewed_by = admin.id
+    wr.reject_reason = data.reason
+
+    wr_user = db.query(User).filter(User.id == wr.user_id).first()
+    msg = f"Your withdrawal of ${float(wr.amount):,.2f} was rejected."
+    if data.reason:
+        msg += f" Reason: {data.reason}"
+    db.add(Notification(
+        user_id=wr.user_id,
+        type="withdrawal_rejected",
+        title="Withdrawal Rejected",
+        message=msg,
+    ))
     db.commit()
+
+    if wr_user:
+        try:
+            send_withdrawal_rejected(wr_user.email, wr_user.name, float(wr.amount), data.reason)
+        except Exception:
+            pass
+
     return {"message": "Withdrawal rejected"}
 
 

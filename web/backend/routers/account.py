@@ -11,8 +11,11 @@ from models.transaction import Transaction, TransactionType
 from models.position import Position, PositionStatus
 from models.balance_snapshot import BalanceSnapshot
 from models.withdrawal_request import WithdrawalRequest, WithdrawalStatus
-from schemas import WithdrawalRequestCreate
+from models.notification import Notification
+from schemas import WithdrawalRequestCreate, ProfileUpdateRequest
 from services.mt5_service import get_live_profits, get_account_info
+from services.email_service import send_admin_withdrawal_request
+from config import ADMIN_EMAIL
 
 router = APIRouter(prefix="/account", tags=["account"])
 
@@ -150,12 +153,21 @@ def request_withdrawal(
     db.add(wr)
     db.commit()
     db.refresh(wr)
+
+    if ADMIN_EMAIL:
+        try:
+            send_admin_withdrawal_request(ADMIN_EMAIL, user.name, user.email, data.amount)
+        except Exception:
+            pass
+
     return {
         "id": wr.id,
         "amount": float(wr.amount),
         "note": wr.note,
         "status": wr.status,
         "created_at": wr.created_at.isoformat(),
+        "reviewed_at": None,
+        "reject_reason": None,
     }
 
 
@@ -175,9 +187,61 @@ def list_user_withdrawals(user=Depends(get_current_user), db: Session = Depends(
             "status": r.status,
             "created_at": r.created_at.isoformat(),
             "reviewed_at": r.reviewed_at.isoformat() if r.reviewed_at else None,
+            "reject_reason": r.reject_reason,
         }
         for r in rows
     ]
+
+
+@router.put("/profile")
+def update_profile(
+    data: ProfileUpdateRequest,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    name = data.name.strip()
+    if not name:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
+    user.name = name
+    db.commit()
+    return {"name": user.name}
+
+
+@router.get("/notifications")
+def get_notifications(
+    limit: int = 30,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    rows = (
+        db.query(Notification)
+        .filter(Notification.user_id == user.id)
+        .order_by(Notification.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": n.id,
+            "type": n.type,
+            "title": n.title,
+            "message": n.message,
+            "read": n.read,
+            "created_at": n.created_at.isoformat(),
+        }
+        for n in rows
+    ]
+
+
+@router.post("/notifications/read-all")
+def mark_notifications_read(user=Depends(get_current_user), db: Session = Depends(get_db)):
+    db.query(Notification).filter(
+        Notification.user_id == user.id,
+        Notification.read == False,  # noqa: E712
+    ).update({"read": True})
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/balance-history")

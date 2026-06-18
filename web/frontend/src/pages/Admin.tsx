@@ -98,6 +98,8 @@ export default function Admin() {
   const [wdRequests, setWdRequests] = useState<AdminWithdrawalRequest[]>([]);
   const [approvingId, setApprovingId] = useState<number | null>(null);
   const [rejectingId, setRejectingId] = useState<number | null>(null);
+  const [rejectReasonId, setRejectReasonId] = useState<number | null>(null);
+  const [rejectReasonText, setRejectReasonText] = useState("");
   const [stats, setStats] = useState<any>(null);
   const [config, setConfig] = useState<Record<string, number>>({});
   const [threshold, setThreshold] = useState("");
@@ -188,11 +190,12 @@ export default function Admin() {
     }
   }
 
-  async function rejectWithdrawal(id: number) {
-    if (!confirm("Reject this withdrawal request?")) return;
+  async function rejectWithdrawal(id: number, reason?: string) {
     setRejectingId(id);
     try {
-      await api.post(`/admin/withdrawals/${id}/reject`);
+      await api.post(`/admin/withdrawals/${id}/reject`, { reason: reason || undefined });
+      setRejectReasonId(null);
+      setRejectReasonText("");
       loadWithdrawals();
     } catch (err: any) {
       alert(err.response?.data?.detail || "Failed to reject");
@@ -426,21 +429,40 @@ export default function Admin() {
                           </div>
                           {w.note && <p className="text-xs text-gray-400">{w.note}</p>}
                           <p className="text-[10px] text-gray-600">{format(new Date(w.created_at), "MMM d yyyy, HH:mm")}</p>
-                          <div className="flex gap-2">
-                            <button
-                              className="flex-1 text-sm py-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 font-medium border border-emerald-500/20 disabled:opacity-50 active:scale-95"
-                              onClick={() => approveWithdrawal(w.id)}
-                              disabled={approvingId === w.id || rejectingId === w.id}
-                            >
-                              {approvingId === w.id ? "Approving..." : "Approve"}
-                            </button>
-                            <button
-                              className="flex-1 text-sm py-2.5 rounded-xl bg-red-500/10 text-red-400 font-medium border border-red-500/20 disabled:opacity-50 active:scale-95"
-                              onClick={() => rejectWithdrawal(w.id)}
-                              disabled={approvingId === w.id || rejectingId === w.id}
-                            >
-                              {rejectingId === w.id ? "Rejecting..." : "Reject"}
-                            </button>
+                          <div className="space-y-2">
+                            <div className="flex gap-2">
+                              <button
+                                className="flex-1 text-sm py-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 font-medium border border-emerald-500/20 disabled:opacity-50 active:scale-95"
+                                onClick={() => approveWithdrawal(w.id)}
+                                disabled={approvingId === w.id || rejectingId === w.id}
+                              >
+                                {approvingId === w.id ? "Approving..." : "Approve"}
+                              </button>
+                              <button
+                                className="flex-1 text-sm py-2.5 rounded-xl bg-red-500/10 text-red-400 font-medium border border-red-500/20 disabled:opacity-50 active:scale-95"
+                                onClick={() => setRejectReasonId(rejectReasonId === w.id ? null : w.id)}
+                                disabled={approvingId === w.id}
+                              >
+                                Reject
+                              </button>
+                            </div>
+                            {rejectReasonId === w.id && (
+                              <div className="flex gap-2">
+                                <input
+                                  className="flex-1 text-xs bg-[#0a0a0f] border border-[#374151] rounded-lg px-3 py-2 text-white focus:outline-none focus:border-red-400/50 placeholder-gray-600"
+                                  placeholder="Reason (optional)"
+                                  value={rejectReasonText}
+                                  onChange={(e) => setRejectReasonText(e.target.value)}
+                                />
+                                <button
+                                  className="text-xs px-3 py-2 rounded-lg bg-red-500/20 text-red-400 font-medium disabled:opacity-50"
+                                  onClick={() => rejectWithdrawal(w.id, rejectReasonText)}
+                                  disabled={rejectingId === w.id}
+                                >
+                                  {rejectingId === w.id ? "..." : "Confirm"}
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -466,21 +488,40 @@ export default function Admin() {
                               <td className="py-3 px-3 text-xs text-gray-400 max-w-[200px] truncate">{w.note || "—"}</td>
                               <td className="py-3 px-3 text-xs text-gray-500 whitespace-nowrap">{format(new Date(w.created_at), "MMM d yyyy, HH:mm")}</td>
                               <td className="py-3 px-3">
-                                <div className="flex gap-2">
-                                  <button
-                                    className="text-xs py-1.5 px-3 rounded-lg bg-emerald-500/10 text-emerald-400 font-medium hover:bg-emerald-500/20 transition-all disabled:opacity-50"
-                                    onClick={() => approveWithdrawal(w.id)}
-                                    disabled={approvingId === w.id || rejectingId === w.id}
-                                  >
-                                    {approvingId === w.id ? "..." : "Approve"}
-                                  </button>
-                                  <button
-                                    className="text-xs py-1.5 px-3 rounded-lg bg-red-500/10 text-red-400 font-medium hover:bg-red-500/20 transition-all disabled:opacity-50"
-                                    onClick={() => rejectWithdrawal(w.id)}
-                                    disabled={approvingId === w.id || rejectingId === w.id}
-                                  >
-                                    {rejectingId === w.id ? "..." : "Reject"}
-                                  </button>
+                                <div className="space-y-1.5">
+                                  <div className="flex gap-1.5">
+                                    <button
+                                      className="text-xs py-1.5 px-3 rounded-lg bg-emerald-500/10 text-emerald-400 font-medium hover:bg-emerald-500/20 transition-all disabled:opacity-50"
+                                      onClick={() => approveWithdrawal(w.id)}
+                                      disabled={approvingId === w.id || rejectingId === w.id}
+                                    >
+                                      {approvingId === w.id ? "..." : "Approve"}
+                                    </button>
+                                    <button
+                                      className="text-xs py-1.5 px-3 rounded-lg bg-red-500/10 text-red-400 font-medium hover:bg-red-500/20 transition-all disabled:opacity-50"
+                                      onClick={() => setRejectReasonId(rejectReasonId === w.id ? null : w.id)}
+                                      disabled={approvingId === w.id}
+                                    >
+                                      Reject
+                                    </button>
+                                  </div>
+                                  {rejectReasonId === w.id && (
+                                    <div className="flex gap-1.5">
+                                      <input
+                                        className="flex-1 text-xs bg-[#0a0a0f] border border-[#374151] rounded-lg px-2 py-1.5 text-white focus:outline-none focus:border-red-400/50 placeholder-gray-600 min-w-0"
+                                        placeholder="Reason (optional)"
+                                        value={rejectReasonText}
+                                        onChange={(e) => setRejectReasonText(e.target.value)}
+                                      />
+                                      <button
+                                        className="text-xs px-2 py-1.5 rounded-lg bg-red-500/20 text-red-400 font-medium whitespace-nowrap disabled:opacity-50"
+                                        onClick={() => rejectWithdrawal(w.id, rejectReasonText)}
+                                        disabled={rejectingId === w.id}
+                                      >
+                                        {rejectingId === w.id ? "..." : "Confirm"}
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               </td>
                             </tr>
