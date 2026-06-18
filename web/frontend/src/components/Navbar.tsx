@@ -87,7 +87,7 @@ export default function Navbar() {
     <nav className="bg-[#111827] border-b border-[#1f2937] sticky top-0 z-50">
       <div className="max-w-[1600px] mx-auto px-4 flex items-center h-14 gap-4">
         {/* Brand */}
-        <span className="text-gold-400 font-bold text-lg tracking-widest mr-2">CB Markets</span>
+        <img src="/logo.svg" alt="CB Markets" className="h-9 w-9 mr-2 shrink-0" />
 
         {/* Desktop nav */}
         <div className="hidden md:flex items-center gap-1 flex-1">

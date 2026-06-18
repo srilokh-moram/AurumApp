@@ -47,9 +47,9 @@ export default function Login() {
     <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
-        <div className="text-center mb-10">
-          <h1 className="text-3xl font-bold text-gold-400 tracking-widest">CB Markets</h1>
-          <p className="text-gray-500 text-sm mt-1">Gold Trading Platform</p>
+        <div className="flex flex-col items-center mb-10">
+          <img src="/logo.svg" alt="CB Markets" className="h-24 w-24 mb-3" />
+          <p className="text-gray-500 text-sm">Gold Trading Platform</p>
         </div>
 
         <div className="card">
